@@ -7,9 +7,9 @@ import { TaskForm } from "@/components/TaskForm";
 import { KanbanBoard } from "@/components/KanbanBoard";
 
 export default function Home() {
-  const [projects,   setProjects]   = useState<Project[]>([]);
-  const [projectId,  setProjectId]  = useState<string>("");
-  const [tasks,      setTasks]      = useState<Task[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [projectId, setProjectId] = useState<string>("");
+  const [tasks, setTasks] = useState<Task[]>([]);
 
   // ── プロジェクト一覧を初回一度だけ取得 ──
   useEffect(() => {
@@ -38,19 +38,27 @@ export default function Home() {
     }
   };
 
+  // ── プロジェクトが更新されたときの処理を追加 ──
+  const handleProjectUpdated = (updatedProject: Project) => {
+    setProjects(prev => prev.map(p => 
+      p.id === updatedProject.id ? updatedProject : p
+    ));
+  };
+
   return (
     <main className="p-4">
       <h1 className="text-2xl font-bold mb-4">Kanban Board</h1>
 
-      {/* ← ここで一度だけフォームを出す */}
+      {/* タスク作成フォーム */}
       <TaskForm
         projects={projects}
         projectId={projectId}
         setProjectId={setProjectId}
         onCreated={handleCreated}
+        onProjectUpdated={handleProjectUpdated}
       />
 
-      {/* ← Board 本体 */}
+      {/* Board 本体 */}
       <KanbanBoard tasks={tasks} setTasks={setTasks} />
     </main>
   );

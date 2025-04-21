@@ -1,7 +1,7 @@
 // src/components/KanbanBoard.tsx
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import {
   DndContext,
   DragEndEvent,
@@ -114,20 +114,22 @@ export function KanbanBoard({ tasks, setTasks }: Props) {
     >
       <div className="flex gap-4 overflow-x-auto pb-4">
         {columns.map((col) => (
-          <Column key={col.key} column={col} tasks={tasks} />
+          <Column key={col.key} column={col} tasks={tasks} setTasks={setTasks} />
         ))}
       </div>
     </DndContext>
   );
 }
 
-// カラムコンポーネントを分離してリファクタリング
+// カラムコンポーネントを更新
 function Column({ 
   column, 
-  tasks 
+  tasks,
+  setTasks
 }: { 
   column: { key: Status; title: string }; 
-  tasks: Task[]; 
+  tasks: Task[];
+  setTasks: React.Dispatch<React.SetStateAction<Task[]>>;
 }) {
   const { setNodeRef, isOver } = useDroppable({
     id: column.key,
@@ -151,14 +153,20 @@ function Column({
       <h3 className="font-semibold mb-3">{column.title}</h3>
       <div className="space-y-2">
         {columnTasks.map((task) => (
-          <TaskCard key={task.id} task={task} />
+          <TaskCard key={task.id} task={task} setTasks={setTasks} />
         ))}
       </div>
     </div>
   );
 }
 
-function TaskCard({ task }: { task: Task }) {
+function TaskCard({ task, setTasks }: { task: Task; setTasks: React.Dispatch<React.SetStateAction<Task[]>> }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [title, setTitle] = useState(task.title);
+  const [assignee, setAssignee] = useState(task.assignee);
+  const [dueDate, setDueDate] = useState(task.dueDate.split('T')[0]); // YYYY-MM-DD形式に変換
+  const [tags, setTags] = useState(task.tags);
+
   const {
     attributes,
     listeners,
@@ -180,20 +188,155 @@ function TaskCard({ task }: { task: Task }) {
     opacity: isDragging ? 0.5 : undefined,
   };
 
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    
+    try {
+      const res = await fetch(`/api/tasks/${task.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title,
+          assignee,
+          dueDate: new Date(dueDate).toISOString(),
+          tags,
+          status: task.status, // 現在のステータスを維持
+          projectId: task.projectId, // プロジェクトIDを維持
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error(await res.text());
+      }
+
+      const updated = await res.json();
+      setTasks(prev => prev.map(t => 
+        t.id === task.id ? updated : t
+      ));
+      setIsEditing(false);
+    } catch (err) {
+      console.error(err);
+      alert("タスクの更新に失敗しました");
+    }
+  }
+
+  async function handleDelete() {
+    if (!confirm("このタスクを削除してもよろしいですか？")) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/tasks/${task.id}`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) {
+        throw new Error(await res.text());
+      }
+
+      setTasks(prev => prev.filter(t => t.id !== task.id));
+    } catch (err) {
+      console.error(err);
+      alert("タスクの削除に失敗しました");
+    }
+  }
+
+  if (isEditing) {
+    return (
+      <form onSubmit={handleSubmit} className="bg-white p-3 rounded shadow">
+        <input
+          type="text"
+          value={title}
+          onChange={e => setTitle(e.target.value)}
+          className="block w-full border p-1 rounded mb-2"
+          placeholder="タイトル"
+          required
+        />
+        <input
+          type="text"
+          value={assignee}
+          onChange={e => setAssignee(e.target.value)}
+          className="block w-full border p-1 rounded mb-2"
+          placeholder="担当者"
+          required
+        />
+        <input
+          type="date"
+          value={dueDate}
+          onChange={e => setDueDate(e.target.value)}
+          className="block w-full border p-1 rounded mb-2"
+          required
+        />
+        <input
+          type="text"
+          value={tags}
+          onChange={e => setTags(e.target.value)}
+          className="block w-full border p-1 rounded mb-2"
+          placeholder="タグ（カンマ区切り）"
+        />
+        <div className="flex gap-2">
+          <button
+            type="submit"
+            className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
+          >
+            保存
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setTitle(task.title);
+              setAssignee(task.assignee);
+              setDueDate(task.dueDate.split('T')[0]);
+              setTags(task.tags);
+              setIsEditing(false);
+            }}
+            className="px-3 py-1 bg-gray-100 rounded hover:bg-gray-200"
+          >
+            キャンセル
+          </button>
+        </div>
+      </form>
+    );
+  }
+
   return (
     <div
       ref={setNodeRef}
-      {...listeners}
-      {...attributes}
       style={style}
-      className="bg-white p-3 rounded shadow cursor-grab select-none touch-none"
+      className="relative bg-white p-3 rounded shadow cursor-grab select-none touch-none"
     >
-      <div className="font-medium mb-1">{task.title}</div>
-      <div className="text-xs text-gray-600">
-        期限: {new Date(task.dueDate).toLocaleDateString()}
-      </div>
-      <div className="text-xs text-gray-600">
-        担当: {task.assignee}
+      <div {...listeners} {...attributes} className="absolute inset-0" />
+      <div className="relative z-10">
+        <div className="flex gap-2">
+          <div className="font-medium">
+            {task.title}
+          </div>
+          <div className="flex gap-1">
+            <button
+              onClick={() => setIsEditing(true)}
+              className="px-2 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded"
+            >
+              編集
+            </button>
+            <button
+              onClick={handleDelete}
+              className="px-2 py-1 text-sm bg-red-100 hover:bg-red-200 rounded"
+            >
+              削除
+            </button>
+          </div>
+        </div>
+        <div className="text-xs text-gray-600">
+          期限: {new Date(task.dueDate).toLocaleDateString()}
+        </div>
+        <div className="text-xs text-gray-600">
+          担当: {task.assignee}
+        </div>
+        {task.tags && (
+          <div className="text-xs text-gray-600">
+            タグ: {task.tags}
+          </div>
+        )}
       </div>
     </div>
   );

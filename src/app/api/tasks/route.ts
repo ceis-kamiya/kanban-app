@@ -78,10 +78,16 @@ export async function POST(request: NextRequest) {
 
     // 「IN_PROGRESS」になった瞬間のみ通知
     const webhookUrl = project?.channelWebhookUrl || process.env.TEAMS_WEBHOOK_URL;
+    const appUrl = process.env.DEPLOY_URL || "";
+    const projectUrl = `${process.env.PROJECT_BASE_URL}/${projectId}`;
+
     if (project?.projectManager && webhookUrl && newStatus === "IN_PROGRESS") {
       const text =
-        `@${assignee} さん、新しいタスク「${title}」が IN_PROGRESS に入りました。\n` +
-        `期限: ${new Date(dueDate).toLocaleDateString()}`;
+        `@${assignee}さん\n` +
+        `新しいタスク「${title}」が IN_PROGRESS に入りました。\n\n` +
+        `• 期限: ${new Date(dueDate).toLocaleDateString()}\n` +
+        (tags ? `• タグ: ${tags}\n` : '') +
+        `\n📱 ${appUrl}\n🔗 ${projectUrl}`;
 
       await notifyTeams(webhookUrl, text);
     }

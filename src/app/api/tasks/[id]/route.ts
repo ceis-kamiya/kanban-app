@@ -48,42 +48,71 @@ export async function PATCH(
     const webhookUrl = before.project?.channelWebhookUrl || process.env.TEAMS_WEBHOOK_URL;
     const pm = before.project?.projectManager;   // 責任者
     const assignee = after.assignee;
+    const projectUrl = `${process.env.PROJECT_BASE_URL}/${before.projectId}`;
+    const appUrl = process.env.DEPLOY_URL || "";
 
     if (webhookUrl) {
-      /* ステータス変更時: before.status → after.status */
+      // 変更内容をテキストで表現
+      const changes = [];
+      if (data.title && before.title !== after.title) {
+        changes.push(`タイトル: "${before.title}" → "${after.title}"`);
+      }
+      if (data.assignee && before.assignee !== after.assignee) {
+        changes.push(`担当者: ${before.assignee} → ${after.assignee}`);
+      }
+      if (data.dueDate && before.dueDate !== after.dueDate) {
+        changes.push(`期限: ${new Date(before.dueDate).toLocaleDateString()} → ${new Date(after.dueDate).toLocaleDateString()}`);
+      }
+      if (data.tags && before.tags !== after.tags) {
+        changes.push(`タグ: ${before.tags || '(なし)'} → ${after.tags || '(なし)'}`);
+      }
       if (data.status && before.status !== after.status) {
-        // ① IN_PROGRESS に入った → 担当者へ
-        if (after.status === "IN_PROGRESS") {
-          await notifyTeams(
-            webhookUrl,
-            `@${assignee} さん、タスク **「${after.title}」** が IN_PROGRESS になりました！\n` +
-            `期限: ${after.dueDate.toLocaleDateString()}`
-          );
-        } else {
-          // ② それ以外のステータス変更 → PM のみ
-          if (pm) {
-            await notifyTeams(
-              webhookUrl,
-              `@${pm} タスク **「${after.title}」** が **${before.status} → ${after.status}** に変更されました。`
-            );
-          }
-        }
-
-        // ③ DONE に変わった瞬間は担当者＋PM
-        if (after.status === "DONE" && pm) {
-          await notifyTeams(
-            webhookUrl,
-            `@${assignee} さん、@${pm}\nタスク **「${after.title}」** が完了しました！🎉`
-          );
-        }
+        changes.push(`ステータス: ${before.status} → ${after.status}`);
       }
 
-      /* 担当者が変わった場合は担当者＋PM に通知（オプション） */
-      if (body.assignee && body.assignee !== before.assignee && pm) {
-        await notifyTeams(
-          webhookUrl,
-          `@${body.assignee} さん、@${pm}\nタスク **「${after.title}」** の担当者が変更されました。`
-        );
+      // 共通のフッター
+      const footer = `\n\n📱 ${appUrl}\n🔗 ${projectUrl}`;
+
+      // 変更があった場合は通知
+      if (changes.length > 0) {
+        const changeText = changes.join('\n');
+        
+        // ステータス変更に応じた特別な通知
+        if (data.status && before.status !== after.status) {
+          if (after.status === "IN_PROGRESS") {
+            // IN_PROGRESSになったら担当者へ
+            await notifyTeams(
+              webhookUrl,
+              `@${assignee}さん\nタスク **「${after.title}」** が IN_PROGRESS になりました！\n\n` +
+              `変更内容:\n${changeText}${footer}`
+            );
+          } else if (after.status === "DONE" && pm) {
+            // DONEになったら担当者とPMへ
+            await notifyTeams(
+              webhookUrl,
+              `@${assignee}さん、@${pm}さん\nタスク **「${after.title}」** が完了しました！🎉\n\n` +
+              `変更内容:\n${changeText}${footer}`
+            );
+          } else if (pm) {
+            // その他のステータス変更はPMのみ
+            await notifyTeams(
+              webhookUrl,
+              `@${pm}さん\nタスク **「${after.title}」** が更新されました。\n\n` +
+              `変更内容:\n${changeText}${footer}`
+            );
+          }
+        } else {
+          // 通常の更新通知（担当者とPMへ）
+          const targets = [assignee];
+          if (pm && pm !== assignee) targets.push(pm);
+          
+          await notifyTeams(
+            webhookUrl,
+            `${targets.map(t => `@${t}さん`).join('、')}\n` +
+            `タスク **「${after.title}」** が更新されました。\n\n` +
+            `変更内容:\n${changeText}${footer}`
+          );
+        }
       }
     }
 
@@ -107,7 +136,41 @@ export async function DELETE(
 ) {
   try {
     const id = Number(params.id);
+    
+    // 削除前にタスク情報を取得
+    const task = await prisma.task.findUnique({
+      where: { id },
+      include: { project: true }
+    });
+
+    if (!task) {
+      return NextResponse.json({ error: "タスクが見つかりません" }, { status: 404 });
+    }
+
+    // タスクを削除
     await prisma.task.delete({ where: { id } });
+
+    // 削除通知を送信
+    const webhookUrl = task.project?.channelWebhookUrl || process.env.TEAMS_WEBHOOK_URL;
+    const pm = task.project?.projectManager;
+    const appUrl = process.env.DEPLOY_URL || "";
+    const projectUrl = `${process.env.PROJECT_BASE_URL}/${task.projectId}`;
+
+    if (webhookUrl) {
+      const targets = [task.assignee];
+      if (pm && pm !== task.assignee) targets.push(pm);
+
+      await notifyTeams(
+        webhookUrl,
+        `${targets.map(t => `@${t}さん`).join('、')}\n` +
+        `タスク **「${task.title}」** が削除されました。\n\n` +
+        `• 期限: ${new Date(task.dueDate).toLocaleDateString()}\n` +
+        `• ステータス: ${task.status}\n` +
+        (task.tags ? `• タグ: ${task.tags}\n` : '') +
+        `\n📱 ${appUrl}\n🔗 ${projectUrl}`
+      );
+    }
+
     return new NextResponse(null, { status: 204 });
   } catch (err: any) {
     console.error("DELETE /api/tasks/[id] エラー:", err);
