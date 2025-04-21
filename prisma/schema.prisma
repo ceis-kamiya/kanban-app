@@ -1,0 +1,62 @@
+// ───────────────────────────────────────────────
+//  schema.prisma
+// ───────────────────────────────────────────────
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+/*——————————————
+  共通 Enum
+——————————————*/
+enum Status {
+  BACKLOG
+  TODO
+  ON_HOLD
+  IN_PROGRESS
+  REVIEW
+  DONE
+}
+
+/*——————————————
+  Project  ← NEW
+——————————————*/
+model Project {
+  id                String  @id @default(uuid())
+  name              String
+  projectManager    String      // ユーザーID・メールなど
+  channelWebhookUrl String?     // Teams用Webhook URL (オプション)
+  // 1:N Task
+  tasks             Task[]
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+/*——————————————
+  Task  (Project に属する)
+——————————————*/
+model Task {
+  id        Int      @id @default(autoincrement())
+  /* — リレーション — */
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id])
+
+  /* — 既存フィールド — */
+  title     String
+  dueDate   DateTime
+  assignee  String
+  /**
+   * カンマ区切り or JSON 文字列
+   */
+  tags      String   @default("")
+  status    Status   @default(TODO)
+
+  /* — メタ — */
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
