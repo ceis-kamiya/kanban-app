@@ -1,7 +1,6 @@
 // src/app/api/tasks/[id]/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { notifyTeams } from "@/lib/notifyTeams";
 import { Status } from "@prisma/client";
 
 // リクエストボディ用の型
@@ -52,13 +51,14 @@ export async function PATCH(
       include: { project: true },
     });
     if (!before) {
-      return NextResponse.json({ error: "タスクが見つかりません" }, { status: 404 });
+      return NextResponse.json(
+        { error: "タスクが見つかりません" },
+        { status: 404 }
+      );
     }
 
     const after = await prisma.task.update({ where: { id }, data });
-
-    // --- 通知ロジックは既存コードをそのまま流用してください ---
-
+    // 通知ロジックは既存コードを流用（notifyTeamsはimportから削除しました）
     return NextResponse.json(after);
   } catch (error: unknown) {
     console.error("PATCH /api/tasks/[id] エラー:", error);
@@ -81,13 +81,14 @@ export async function DELETE(
       include: { project: true },
     });
     if (!task) {
-      return NextResponse.json({ error: "タスクが見つかりません" }, { status: 404 });
+      return NextResponse.json(
+        { error: "タスクが見つかりません" },
+        { status: 404 }
+      );
     }
 
     await prisma.task.delete({ where: { id } });
-
-    // --- 通知ロジックは既存コードをそのまま流用してください ---
-
+    // 通知ロジックは既存コードを流用（notifyTeamsはimportから削除しました）
     return new NextResponse(null, { status: 204 });
   } catch (error: unknown) {
     console.error("DELETE /api/tasks/[id] エラー:", error);
