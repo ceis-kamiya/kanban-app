@@ -303,41 +303,40 @@ function TaskCard({ task, setTasks }: { task: Task; setTasks: React.Dispatch<Rea
     <div
       ref={setNodeRef}
       style={style}
-      className="relative bg-white p-3 rounded shadow cursor-grab select-none touch-none"
+      {...listeners}
+      {...attributes}
+      className="bg-white p-3 rounded shadow cursor-grab select-none touch-none"
     >
-      <div {...listeners} {...attributes} className="absolute inset-0" />
-      <div className="relative z-10">
-        <div className="flex gap-2">
-          <div className="font-medium">
-            {task.title}
-          </div>
-          <div className="flex gap-1">
-            <button
-              onClick={() => setIsEditing(true)}
-              className="px-2 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded"
-            >
-              編集
-            </button>
-            <button
-              onClick={handleDelete}
-              className="px-2 py-1 text-sm bg-red-100 hover:bg-red-200 rounded"
-            >
-              削除
-            </button>
-          </div>
+      <div className="flex gap-2">
+        <div className="font-medium">
+          {task.title}
         </div>
-        <div className="text-xs text-gray-600">
-          期限: {new Date(task.dueDate).toLocaleDateString()}
+        <div className="flex gap-1">
+          <button
+            onClick={() => setIsEditing(true)}
+            className="px-2 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded"
+          >
+            編集
+          </button>
+          <button
+            onClick={handleDelete}
+            className="px-2 py-1 text-sm bg-red-100 hover:bg-red-200 rounded"
+          >
+            削除
+          </button>
         </div>
-        <div className="text-xs text-gray-600">
-          担当: {task.assignee}
-        </div>
-        {task.tags && (
-          <div className="text-xs text-gray-600">
-            タグ: {task.tags}
-          </div>
-        )}
       </div>
+      <div className="text-xs text-gray-600">
+        期限: {new Date(task.dueDate).toLocaleDateString()}
+      </div>
+      <div className="text-xs text-gray-600">
+        担当: {task.assignee}
+      </div>
+      {task.tags && (
+        <div className="text-xs text-gray-600">
+          タグ: {task.tags}
+        </div>
+      )}
     </div>
   );
 }

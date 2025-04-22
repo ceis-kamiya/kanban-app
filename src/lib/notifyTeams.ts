@@ -1,35 +1,51 @@
 /* ──────────────────────────────────────────────
    src/lib/notifyTeams.ts
    - Teams Webhook へ投稿するユーティリティ
-   - 使い方: notifyTeams(webhookUrl, text) または notifyTeams(text)
-   - 環境変数版も後方互換でサポート
+   - 使い方: notifyTeams(projectId, text)
+   - プロジェクトのWebhook URLまたはデフォルトの環境変数を使用
 ────────────────────────────────────────────── */
-
-type NotifyArgs =
-  | [string, string]       // (webhookUrl, text)
-  | [string];              // (text) → env から URL を取る
+import prisma from "./prisma";
 
 /**
  * Teams にカード形式でメッセージを投稿
- * @param args (webhookUrl, text) または (text)
+ * @param projectId プロジェクトID（nullの場合はデフォルトのwebhook URLを使用）
+ * @param text 投稿するメッセージ
  */
-export async function notifyTeams(...args: NotifyArgs): Promise<void> {
-  // 引数の解釈
-  const webhookUrl = args.length === 2 ? args[0] : process.env.TEAMS_WEBHOOK_URL;
-  const text       = args.length === 2 ? args[1] : args[0];
+export async function notifyTeams(projectId: string | null, text: string): Promise<void> {
+  let webhookUrl: string | null = null;
+
+  if (projectId) {
+    // プロジェクトの環境変数キー名を取得
+    const project = await prisma.project.findUnique({
+      where: { id: projectId },
+      select: { webhookUrlKey: true }
+    });
+
+    // キーから環境変数の値を取得
+    if (project?.webhookUrlKey) {
+      webhookUrl = process.env[project.webhookUrlKey] || null;
+    }
+  }
+
+  // プロジェクトのWebhook URLがない場合はデフォルトを使用
+  webhookUrl = webhookUrl || process.env.TEAMS_WEBHOOK_URL || null;
 
   if (!webhookUrl) {
     throw new Error(
-      "▶︎ Webhook URL が指定されていません（引数または TEAMS_WEBHOOK_URL 環境変数）"
+      "▶︎ Webhook URLが設定されていません（プロジェクトまたは環境変数 TEAMS_WEBHOOK_URL）"
     );
   }
 
   console.log("Teams通知を送信します:", {
-    url: webhookUrl,
-    text: text
+    projectId,
+    webhookUrlKey: projectId ? (await prisma.project.findUnique({
+      where: { id: projectId },
+      select: { webhookUrlKey: true }
+    }))?.webhookUrlKey : 'TEAMS_WEBHOOK_URL',
+    text
   });
 
-  // Microsoft Teams の “Incoming Webhook” は JSON で { text } を投げるだけ
+  // Microsoft Teams の "Incoming Webhook" は JSON で { text } を投げるだけ
   const res = await fetch(webhookUrl, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

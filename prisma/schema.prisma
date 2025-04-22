@@ -29,7 +29,7 @@ model Project {
   id                String  @id @default(uuid())
   name              String
   projectManager    String      // ユーザーID・メールなど
-  channelWebhookUrl String?     // Teams用Webhook URL (オプション)
+  webhookUrlKey     String?     // Teams用Webhook URLの環境変数キー名
   // 1:N Task
   tasks             Task[]
 

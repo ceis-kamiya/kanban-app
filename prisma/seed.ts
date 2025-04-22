@@ -7,7 +7,7 @@ async function main() {
     data: {
       name: "取り組み集",
       projectManager: "鈴木PM",
-      channelWebhookUrl: "https://prod-06.japaneast.logic.azure.com:443/workflows/4902f8c90f9c450b81bf93954dcb23d1/triggers/manual/paths/invoke?api-version=2016-06-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=NCZ0XacjKiolRBFFD0miqnH1VpvU_lmoEI6wkwq31hg",
+      webhookUrlKey: "TORIKUMI_WEBHOOK_URL",
       tasks: {
         create: [
           {
@@ -41,7 +41,7 @@ async function main() {
     data: {
       name: "ものがたり",
       projectManager: "田中PM",
-      channelWebhookUrl: "https://prod-34.japaneast.logic.azure.com:443/workflows/3b27ec71b8d448528761494dbb53d1c5/triggers/manual/paths/invoke?api-version=2016-06-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=B70CCMQgSpHCTje3SlsH68mViAAN07OaEON3DysO0-c",
+      webhookUrlKey: "MONOGATARI_WEBHOOK_URL",
       tasks: {
         create: [
           {
