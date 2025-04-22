@@ -10,7 +10,6 @@ export async function GET(_request: NextRequest): Promise<NextResponse> {
     return NextResponse.json(projects);
   } catch (error: unknown) {
     console.error("GET /api/projects エラー:", error);
-    // 空配列で返すことで、クライアント側の projects.map が必ず動くようにする
-    return NextResponse.json([]);
+    return NextResponse.json([]); // 空配列で安全に返却
   }
 }

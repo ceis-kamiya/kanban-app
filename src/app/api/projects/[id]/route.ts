@@ -1,3 +1,4 @@
+// src/app/api/projects/[id]/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 
@@ -12,10 +13,8 @@ export async function PATCH(
 ): Promise<NextResponse> {
   try {
     const id = params.id;
-    // JSONを受け取って型を絞り込む
     const body = (await req.json()) as ProjectUpdateBody;
 
-    // projectManagerが文字列かつ空でないことをチェック
     if (typeof body.projectManager !== "string" || !body.projectManager.trim()) {
       return NextResponse.json(
         { error: "責任者は必須です" },
@@ -23,7 +22,6 @@ export async function PATCH(
       );
     }
 
-    // プロジェクト更新
     const project = await prisma.project.update({
       where: { id },
       data: { projectManager: body.projectManager },

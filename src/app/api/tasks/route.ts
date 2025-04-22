@@ -4,7 +4,7 @@ import prisma from "@/lib/prisma";
 import { notifyTeams } from "@/lib/notifyTeams";
 import { Status } from "@prisma/client";
 
-// リクエストボディの型定義（unknownを使い、後で型ガードします）
+// リクエストボディの型定義
 interface TaskCreateBody {
   title?: unknown;
   dueDate?: unknown;
@@ -14,11 +14,6 @@ interface TaskCreateBody {
   projectId?: unknown;
 }
 
-/**
- * GET /api/tasks
- * - projectIdクエリがあればそのプロジェクトで絞り込み
- * - dueDate昇順で返却
- */
 export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
     const projectId = request.nextUrl.searchParams.get("projectId") ?? undefined;
@@ -33,17 +28,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   }
 }
 
-/**
- * POST /api/tasks
- * - 必須: title, dueDate, assignee, projectId
- * - status未指定ならIN_PROGRESS
- * - 作成時にIN_PROGRESSなら担当者へ通知
- */
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     const body = (await request.json()) as TaskCreateBody;
 
-    // 必須チェックと型ガード
     if (
       typeof body.title !== "string" ||
       typeof body.dueDate !== "string" ||
@@ -60,11 +48,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const dueDateStr = body.dueDate;
     const assignee = body.assignee;
     const projectId = body.projectId;
-
-    // タグが文字列かどうか
     const tags = typeof body.tags === "string" ? body.tags : "";
-
-    // ステータスを型ガード。なければIN_PROGRESS
     let newStatus: Status = "IN_PROGRESS";
     if (
       typeof body.status === "string" &&
@@ -73,7 +57,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       newStatus = body.status as Status;
     }
 
-    // 重複チェック
     const dup = await prisma.task.findFirst({
       where: { title, assignee, projectId },
     });
@@ -84,7 +67,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    // タスク作成
     const task = await prisma.task.create({
       data: {
         title,
@@ -96,10 +78,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       },
     });
 
-    // プロジェクト情報取得
     const project = await prisma.project.findUnique({ where: { id: projectId } });
-
-    // 作成時IN_PROGRESSなら通知
     if (project?.projectManager && newStatus === "IN_PROGRESS") {
       const appUrl = process.env.DEPLOY_URL ?? "";
       const projectUrl = `${process.env.PROJECT_BASE_URL}/${projectId}`;
@@ -115,9 +94,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json(task, { status: 201 });
   } catch (error: unknown) {
     console.error("POST /api/tasks エラー:", error);
-    return NextResponse.json(
-      { error: "サーバーエラー" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "サーバーエラー" }, { status: 500 });
   }
 }

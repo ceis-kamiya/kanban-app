@@ -4,7 +4,7 @@ import prisma from "@/lib/prisma";
 import { notifyTeams } from "@/lib/notifyTeams";
 import { Status } from "@prisma/client";
 
-// リクエストボディ用の型（unknownで受けて後で型ガードします）
+// リクエストボディ用の型
 interface TaskUpdateBody {
   title?: unknown;
   dueDate?: unknown;
@@ -19,10 +19,8 @@ export async function PATCH(
 ): Promise<NextResponse> {
   try {
     const id = Number(params.id);
-    // JSONをunknownとして受け取り、型を絞り込む
     const body = (await req.json()) as TaskUpdateBody;
 
-    // 更新用データをPartialで定義
     const data: Partial<{
       title: string;
       dueDate: string;
@@ -31,7 +29,6 @@ export async function PATCH(
       status: Status;
     }> = {};
 
-    // 各フィールドに対して、型チェックをしてからdataにセット
     if (typeof body.title === "string") data.title = body.title;
     if (typeof body.dueDate === "string") data.dueDate = body.dueDate;
     if (typeof body.assignee === "string") data.assignee = body.assignee;
@@ -43,7 +40,6 @@ export async function PATCH(
       data.status = body.status as Status;
     }
 
-    // 必要なフィールドがあるかチェック
     if (Object.keys(data).length === 0) {
       return NextResponse.json(
         { error: "更新項目がありません" },
@@ -51,23 +47,17 @@ export async function PATCH(
       );
     }
 
-    // 更新前のタスクとプロジェクト情報を取得
     const before = await prisma.task.findUnique({
       where: { id },
       include: { project: true },
     });
     if (!before) {
-      return NextResponse.json(
-        { error: "タスクが見つかりません" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "タスクが見つかりません" }, { status: 404 });
     }
 
-    // タスクを更新
     const after = await prisma.task.update({ where: { id }, data });
 
-    // 変更テキスト作成などの通知ロジックは省略（既存コードを流用）
-    // ...
+    // --- 通知ロジックは既存コードをそのまま流用してください ---
 
     return NextResponse.json(after);
   } catch (error: unknown) {
@@ -86,26 +76,18 @@ export async function DELETE(
 ): Promise<NextResponse> {
   try {
     const id = Number(params.id);
-
-    // 削除前のタスク取得
     const task = await prisma.task.findUnique({
       where: { id },
       include: { project: true },
     });
     if (!task) {
-      return NextResponse.json(
-        { error: "タスクが見つかりません" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "タスクが見つかりません" }, { status: 404 });
     }
 
-    // タスク削除
     await prisma.task.delete({ where: { id } });
 
-    // 通知ロジックは省略（既存コードを流用）
-    // ...
+    // --- 通知ロジックは既存コードをそのまま流用してください ---
 
-    // 204 No Content を返す
     return new NextResponse(null, { status: 204 });
   } catch (error: unknown) {
     console.error("DELETE /api/tasks/[id] エラー:", error);
