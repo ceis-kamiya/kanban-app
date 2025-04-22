@@ -9,6 +9,7 @@ export async function GET(): Promise<NextResponse> {
     const projects = await prisma.project.findMany({
       orderBy: { name: "asc" },
     });
+    console.log("🟢 DBから取得したプロジェクト:", projects);
     return NextResponse.json(projects);
   } catch (error: unknown) {
     console.error("GET /api/projects エラー:", error);
