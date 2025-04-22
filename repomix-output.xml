@@ -1,0 +1,1611 @@
+This file is a merged representation of the entire codebase, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+<additional_info>
+
+</additional_info>
+
+</file_summary>
+
+<directory_structure>
+.gitignore
+eslint.config.mjs
+next.config.ts
+package.json
+postcss.config.mjs
+prisma/migrations/20250422132044_init/migration.sql
+prisma/migrations/migration_lock.toml
+prisma/schema.prisma
+prisma/seed.ts
+public/file.svg
+public/globe.svg
+public/next.svg
+public/vercel.svg
+public/window.svg
+README.md
+scripts/export.ts
+src/app/api/projects/[id]/route.ts
+src/app/api/projects/route.ts
+src/app/api/tasks/[id]/route.ts
+src/app/api/tasks/route.ts
+src/app/globals.css
+src/app/layout.tsx
+src/app/page.tsx
+src/components/KanbanBoard.tsx
+src/components/ProjectManagerForm.tsx
+src/components/TaskForm.tsx
+src/lib/notifyTeams.ts
+src/lib/prisma.ts
+src/types.ts
+tsconfig.json
+tsconfig.seed.json
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="prisma/migrations/20250422132044_init/migration.sql">
+-- CreateEnum
+CREATE TYPE "Status" AS ENUM ('BACKLOG', 'TODO', 'ON_HOLD', 'IN_PROGRESS', 'REVIEW', 'DONE');
+
+-- CreateTable
+CREATE TABLE "Project" (
+    "id" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "projectManager" TEXT NOT NULL,
+    "webhookUrlKey" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Project_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "Task" (
+    "id" SERIAL NOT NULL,
+    "projectId" TEXT NOT NULL,
+    "title" TEXT NOT NULL,
+    "dueDate" TIMESTAMP(3) NOT NULL,
+    "assignee" TEXT NOT NULL,
+    "tags" TEXT NOT NULL DEFAULT '',
+    "status" "Status" NOT NULL DEFAULT 'TODO',
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Task_pkey" PRIMARY KEY ("id")
+);
+
+-- AddForeignKey
+ALTER TABLE "Task" ADD CONSTRAINT "Task_projectId_fkey" FOREIGN KEY ("projectId") REFERENCES "Project"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+</file>
+
+<file path="scripts/export.ts">
+import { PrismaClient } from "@prisma/client";
+import { writeFileSync } from "fs";
+
+const prisma = new PrismaClient();
+
+async function main() {
+  const projects = await prisma.project.findMany({
+    include: { tasks: true },
+  });
+
+  writeFileSync("data.json", JSON.stringify(projects, null, 2), "utf-8");
+  console.log("✅ data.json にローカルデータを書き出しました！");
+}
+
+main()
+  .catch((e) => {
+    console.error("❌ エクスポート失敗:", e);
+  })
+  .finally(() => {
+    prisma.$disconnect();
+  });
+</file>
+
+<file path=".gitignore">
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files (can opt-in for committing if needed)
+.env*
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+</file>
+
+<file path="eslint.config.mjs">
+import { dirname } from "path";
+import { fileURLToPath } from "url";
+import { FlatCompat } from "@eslint/eslintrc";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+const compat = new FlatCompat({
+  baseDirectory: __dirname,
+});
+
+const eslintConfig = [
+  ...compat.extends("next/core-web-vitals", "next/typescript"),
+];
+
+export default eslintConfig;
+</file>
+
+<file path="postcss.config.mjs">
+const config = {
+  plugins: ["@tailwindcss/postcss"],
+};
+
+export default config;
+</file>
+
+<file path="prisma/migrations/migration_lock.toml">
+# Please do not edit this file manually
+# It should be added in your version-control system (e.g., Git)
+provider = "postgresql"
+</file>
+
+<file path="public/file.svg">
+<svg fill="none" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><path d="M14.5 13.5V5.41a1 1 0 0 0-.3-.7L9.8.29A1 1 0 0 0 9.08 0H1.5v13.5A2.5 2.5 0 0 0 4 16h8a2.5 2.5 0 0 0 2.5-2.5m-1.5 0v-7H8v-5H3v12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1M9.5 5V2.12L12.38 5zM5.13 5h-.62v1.25h2.12V5zm-.62 3h7.12v1.25H4.5zm.62 3h-.62v1.25h7.12V11z" clip-rule="evenodd" fill="#666" fill-rule="evenodd"/></svg>
+</file>
+
+<file path="public/globe.svg">
+<svg fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><g clip-path="url(#a)"><path fill-rule="evenodd" clip-rule="evenodd" d="M10.27 14.1a6.5 6.5 0 0 0 3.67-3.45q-1.24.21-2.7.34-.31 1.83-.97 3.1M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16m.48-1.52a7 7 0 0 1-.96 0H7.5a4 4 0 0 1-.84-1.32q-.38-.89-.63-2.08a40 40 0 0 0 3.92 0q-.25 1.2-.63 2.08a4 4 0 0 1-.84 1.31zm2.94-4.76q1.66-.15 2.95-.43a7 7 0 0 0 0-2.58q-1.3-.27-2.95-.43a18 18 0 0 1 0 3.44m-1.27-3.54a17 17 0 0 1 0 3.64 39 39 0 0 1-4.3 0 17 17 0 0 1 0-3.64 39 39 0 0 1 4.3 0m1.1-1.17q1.45.13 2.69.34a6.5 6.5 0 0 0-3.67-3.44q.65 1.26.98 3.1M8.48 1.5l.01.02q.41.37.84 1.31.38.89.63 2.08a40 40 0 0 0-3.92 0q.25-1.2.63-2.08a4 4 0 0 1 .85-1.32 7 7 0 0 1 .96 0m-2.75.4a6.5 6.5 0 0 0-3.67 3.44 29 29 0 0 1 2.7-.34q.31-1.83.97-3.1M4.58 6.28q-1.66.16-2.95.43a7 7 0 0 0 0 2.58q1.3.27 2.95.43a18 18 0 0 1 0-3.44m.17 4.71q-1.45-.12-2.69-.34a6.5 6.5 0 0 0 3.67 3.44q-.65-1.27-.98-3.1" fill="#666"/></g><defs><clipPath id="a"><path fill="#fff" d="M0 0h16v16H0z"/></clipPath></defs></svg>
+</file>
+
+<file path="public/next.svg">
+<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 394 80"><path fill="#000" d="M262 0h68.5v12.7h-27.2v66.6h-13.6V12.7H262V0ZM149 0v12.7H94v20.4h44.3v12.6H94v21h55v12.6H80.5V0h68.7zm34.3 0h-17.8l63.8 79.4h17.9l-32-39.7 32-39.6h-17.9l-23 28.6-23-28.6zm18.3 56.7-9-11-27.1 33.7h17.8l18.3-22.7z"/><path fill="#000" d="M81 79.3 17 0H0v79.3h13.6V17l50.2 62.3H81Zm252.6-.4c-1 0-1.8-.4-2.5-1s-1.1-1.6-1.1-2.6.3-1.8 1-2.5 1.6-1 2.6-1 1.8.3 2.5 1a3.4 3.4 0 0 1 .6 4.3 3.7 3.7 0 0 1-3 1.8zm23.2-33.5h6v23.3c0 2.1-.4 4-1.3 5.5a9.1 9.1 0 0 1-3.8 3.5c-1.6.8-3.5 1.3-5.7 1.3-2 0-3.7-.4-5.3-1s-2.8-1.8-3.7-3.2c-.9-1.3-1.4-3-1.4-5h6c.1.8.3 1.6.7 2.2s1 1.2 1.6 1.5c.7.4 1.5.5 2.4.5 1 0 1.8-.2 2.4-.6a4 4 0 0 0 1.6-1.8c.3-.8.5-1.8.5-3V45.5zm30.9 9.1a4.4 4.4 0 0 0-2-3.3 7.5 7.5 0 0 0-4.3-1.1c-1.3 0-2.4.2-3.3.5-.9.4-1.6 1-2 1.6a3.5 3.5 0 0 0-.3 4c.3.5.7.9 1.3 1.2l1.8 1 2 .5 3.2.8c1.3.3 2.5.7 3.7 1.2a13 13 0 0 1 3.2 1.8 8.1 8.1 0 0 1 3 6.5c0 2-.5 3.7-1.5 5.1a10 10 0 0 1-4.4 3.5c-1.8.8-4.1 1.2-6.8 1.2-2.6 0-4.9-.4-6.8-1.2-2-.8-3.4-2-4.5-3.5a10 10 0 0 1-1.7-5.6h6a5 5 0 0 0 3.5 4.6c1 .4 2.2.6 3.4.6 1.3 0 2.5-.2 3.5-.6 1-.4 1.8-1 2.4-1.7a4 4 0 0 0 .8-2.4c0-.9-.2-1.6-.7-2.2a11 11 0 0 0-2.1-1.4l-3.2-1-3.8-1c-2.8-.7-5-1.7-6.6-3.2a7.2 7.2 0 0 1-2.4-5.7 8 8 0 0 1 1.7-5 10 10 0 0 1 4.3-3.5c2-.8 4-1.2 6.4-1.2 2.3 0 4.4.4 6.2 1.2 1.8.8 3.2 2 4.3 3.4 1 1.4 1.5 3 1.5 5h-5.8z"/></svg>
+</file>
+
+<file path="public/vercel.svg">
+<svg fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1155 1000"><path d="m577.3 0 577.4 1000H0z" fill="#fff"/></svg>
+</file>
+
+<file path="public/window.svg">
+<svg fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path fill-rule="evenodd" clip-rule="evenodd" d="M1.5 2.5h13v10a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1zM0 1h16v11.5a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 0 12.5zm3.75 4.5a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5M7 4.75a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0m1.75.75a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5" fill="#666"/></svg>
+</file>
+
+<file path="README.md">
+This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+
+## Getting Started
+
+First, run the development server:
+
+```bash
+npm run dev
+# or
+yarn dev
+# or
+pnpm dev
+# or
+bun dev
+```
+
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+
+You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+
+This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+
+## Learn More
+
+To learn more about Next.js, take a look at the following resources:
+
+- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
+- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+
+You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+
+## Deploy on Vercel
+
+The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+
+Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+</file>
+
+<file path="src/app/globals.css">
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+</file>
+
+<file path="src/app/layout.tsx">
+import type { Metadata } from "next";
+import { Geist, Geist_Mono } from "next/font/google";
+import "./globals.css";
+
+const geistSans = Geist({
+  variable: "--font-geist-sans",
+  subsets: ["latin"],
+});
+
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
+  subsets: ["latin"],
+});
+
+export const metadata: Metadata = {
+  title: "Create Next App",
+  description: "Generated by create next app",
+};
+
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+  return (
+    <html lang="en">
+      <body
+        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+      >
+        {children}
+      </body>
+    </html>
+  );
+}
+</file>
+
+<file path="src/components/ProjectManagerForm.tsx">
+// src/components/ProjectManagerForm.tsx
+"use client";
+
+import React, { useState } from "react";
+import { Project } from "@/types";
+
+type Props = {
+  project: Project;
+  onUpdated: (project: Project) => void;
+};
+
+export function ProjectManagerForm({ project, onUpdated }: Props) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [manager, setManager] = useState(project.projectManager);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    
+    try {
+      const res = await fetch(`/api/projects/${project.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectManager: manager }),
+      });
+
+      if (!res.ok) {
+        throw new Error(await res.text());
+      }
+
+      const updated = await res.json();
+      onUpdated(updated);
+      setIsEditing(false);
+    } catch (err) {
+      console.error(err);
+      alert("責任者の更新に失敗しました");
+    }
+  }
+
+  if (!isEditing) {
+    return (
+      <div className="flex items-center gap-2">
+        <span>責任者: {project.projectManager}</span>
+        <button 
+          onClick={() => setIsEditing(true)}
+          className="px-2 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded"
+        >
+          編集
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="flex items-center gap-2">
+      <input
+        type="text"
+        value={manager}
+        onChange={e => setManager(e.target.value)}
+        className="border p-1 rounded"
+        required
+      />
+      <button
+        type="submit"
+        className="px-2 py-1 bg-blue-600 text-white rounded"
+      >
+        保存
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          setManager(project.projectManager);
+          setIsEditing(false);
+        }}
+        className="px-2 py-1 bg-gray-100 rounded"
+      >
+        キャンセル
+      </button>
+    </form>
+  );
+}
+</file>
+
+<file path="src/lib/prisma.ts">
+import { PrismaClient } from '@prisma/client';
+
+// Prevent multiple instances in development
+const globalForPrisma = global as unknown as { prisma?: PrismaClient };
+export const prisma =
+  globalForPrisma.prisma ?? new PrismaClient();
+if (process.env.NODE_ENV !== 'production') {
+  globalForPrisma.prisma = prisma;
+}
+
+export default prisma;
+
+console.log("✅ 環境変数:", process.env.DATABASE_URL);
+</file>
+
+<file path="src/types.ts">
+/* ────────────────────────────────
+   src/types.ts       ― 型定義
+───────────────────────────────── */
+
+/** カラム（ステータス） */
+export type Status =
+  | 'BACKLOG'
+  | 'TODO'        // ← 旧UIが参照しているかもしれないので残しておく
+  | 'ON_HOLD'
+  | 'IN_PROGRESS'
+  | 'REVIEW'
+  | 'DONE';
+
+/** プロジェクト情報 */
+export interface Project {
+  /** プロジェクト ID（UUID 文字列など） */
+  id: string;
+  /** 表示名 */
+  name: string;
+  /** プロジェクト責任者（ユーザーID or メール） */
+  projectManager: string;
+}
+
+/** タスク情報 */
+export interface Task {
+  /** タスク ID（数値 or UUID） */
+  id: number;
+  /** どのプロジェクトに属するか */
+  projectId: string;
+  /** タイトル */
+  title: string;
+  /** 期日（ISO 文字列） */
+  dueDate: string;
+  /** 担当者（ユーザーID or メール） */
+  assignee: string;
+  /** タグ／メモなど */
+  tags: string;
+  /** 現在のステータス */
+  status: Status;
+}
+</file>
+
+<file path="next.config.ts">
+import type { NextConfig } from "next";
+
+const nextConfig: NextConfig = {
+  env: {
+    DEPLOY_URL: "https://kanban-app.vercel.app",  // デプロイ時に実際のURLに変更
+    PROJECT_BASE_URL: "https://kanban-app.vercel.app/projects"  // プロジェクトページのベースURL
+  }
+};
+
+export default nextConfig;
+</file>
+
+<file path="prisma/schema.prisma">
+// ───────────────────────────────────────────────
+//  schema.prisma
+// ───────────────────────────────────────────────
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+/*——————————————
+  共通 Enum
+——————————————*/
+enum Status {
+  BACKLOG
+  TODO
+  ON_HOLD
+  IN_PROGRESS
+  REVIEW
+  DONE
+}
+
+/*——————————————
+  Project  ← NEW
+——————————————*/
+model Project {
+  id                String  @id @default(uuid())
+  name              String
+  projectManager    String      // ユーザーID・メールなど
+  webhookUrlKey     String?     // Teams用Webhook URLの環境変数キー名
+  // 1:N Task
+  tasks             Task[]
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+/*——————————————
+  Task  (Project に属する)
+——————————————*/
+model Task {
+  id        Int      @id @default(autoincrement())
+  /* — リレーション — */
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id])
+
+  /* — 既存フィールド — */
+  title     String
+  dueDate   DateTime
+  assignee  String
+  /**
+   * カンマ区切り or JSON 文字列
+   */
+  tags      String   @default("")
+  status    Status   @default(TODO)
+
+  /* — メタ — */
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+</file>
+
+<file path="src/components/TaskForm.tsx">
+// src/components/TaskForm.tsx
+"use client";
+
+import React, { useState } from "react";
+import { Project, Task } from "@/types";
+import { ProjectManagerForm } from "./ProjectManagerForm";
+
+type Props = {
+  projects: Project[];
+  projectId: string;
+  setProjectId: (id: string) => void;
+  onCreated: (task: Task) => void;
+  onProjectUpdated: (project: Project) => void;
+};
+
+export function TaskForm({ 
+  projects, 
+  projectId, 
+  setProjectId, 
+  onCreated,
+  onProjectUpdated 
+}: Props) {
+  const [title, setTitle] = useState("");
+  const [assignee, setAssignee] = useState("");
+  const [dueDate, setDueDate] = useState("");
+  const [tags, setTags] = useState("");
+  const [projectUpdated, setProjectUpdated] = useState(0);
+
+  const selectedProject = projects.find((p) => p.id === projectId);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+
+    try {
+      const res = await fetch("/api/tasks", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          title,
+          assignee,
+          dueDate,
+          tags,
+          projectId,
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error(await res.text());
+      }
+
+      const task = await res.json();
+      onCreated(task);
+
+      // フォームをリセット
+      setTitle("");
+      setAssignee("");
+      setTags("");
+      // 日付はそのまま
+
+    } catch (err) {
+      console.error(err);
+      alert("タスクの作成に失敗しました");
+    }
+  }
+
+  return (
+    <div className="mb-6">
+      <div className="flex gap-4 items-end mb-4">
+        <div>
+          <label className="block text-sm mb-1">プロジェクト</label>
+          <select
+            value={projectId}
+            onChange={(e) => setProjectId(e.target.value)}
+            className="border p-2 rounded"
+          >
+            {projects.map((project) => (
+              <option key={project.id} value={project.id}>
+                {project.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {selectedProject && (
+          <ProjectManagerForm
+            key={`${selectedProject.id}-${projectUpdated}`}
+            project={selectedProject}
+            onUpdated={(project) => {
+              setProjectUpdated(n => n + 1);
+              onProjectUpdated(project);
+            }}
+          />
+        )}
+      </div>
+
+      <form onSubmit={handleSubmit} className="flex flex-wrap gap-2">
+        <input
+          type="text"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="タスク名"
+          required
+          className="border p-2 rounded"
+        />
+        <input
+          type="text"
+          value={assignee}
+          onChange={(e) => setAssignee(e.target.value)}
+          placeholder="担当者"
+          required
+          className="border p-2 rounded"
+        />
+        <input
+          type="date"
+          value={dueDate}
+          onChange={(e) => setDueDate(e.target.value)}
+          required
+          className="border p-2 rounded"
+        />
+        <input
+          type="text"
+          value={tags}
+          onChange={(e) => setTags(e.target.value)}
+          placeholder="タグ（カンマ区切り）"
+          className="border p-2 rounded"
+        />
+        <button
+          type="submit"
+          className="bg-blue-600 text-white px-3 py-2 rounded"
+        >
+          作成
+        </button>
+      </form>
+    </div>
+  );
+}
+</file>
+
+<file path="src/lib/notifyTeams.ts">
+/* ──────────────────────────────────────────────
+   src/lib/notifyTeams.ts
+   - Teams Webhook へ投稿するユーティリティ
+   - 使い方: notifyTeams(projectId, text)
+   - プロジェクトのWebhook URLまたはデフォルトの環境変数を使用
+────────────────────────────────────────────── */
+import prisma from "./prisma";
+
+/**
+ * Teams にカード形式でメッセージを投稿
+ * @param projectId プロジェクトID（nullの場合はデフォルトのwebhook URLを使用）
+ * @param text 投稿するメッセージ
+ */
+export async function notifyTeams(projectId: string | null, text: string): Promise<void> {
+  let webhookUrl: string | null = null;
+
+  if (projectId) {
+    // プロジェクトの環境変数キー名を取得
+    const project = await prisma.project.findUnique({
+      where: { id: projectId },
+      select: { webhookUrlKey: true }
+    });
+
+    // キーから環境変数の値を取得
+    if (project?.webhookUrlKey) {
+      webhookUrl = process.env[project.webhookUrlKey] || null;
+    }
+  }
+
+  // プロジェクトのWebhook URLがない場合はデフォルトを使用
+  webhookUrl = webhookUrl || process.env.TEAMS_WEBHOOK_URL || null;
+
+  if (!webhookUrl) {
+    throw new Error(
+      "▶︎ Webhook URLが設定されていません（プロジェクトまたは環境変数 TEAMS_WEBHOOK_URL）"
+    );
+  }
+
+  console.log("Teams通知を送信します:", {
+    projectId,
+    webhookUrlKey: projectId ? (await prisma.project.findUnique({
+      where: { id: projectId },
+      select: { webhookUrlKey: true }
+    }))?.webhookUrlKey : 'TEAMS_WEBHOOK_URL',
+    text
+  });
+
+  // Microsoft Teams の "Incoming Webhook" は JSON で { text } を投げるだけ
+  const res = await fetch(webhookUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text }),
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    console.error("Teams 通知エラー:", res.status, body);
+    throw new Error(`Teams 通知に失敗しました (${res.status})`);
+  }
+
+  console.log("Teams通知が成功しました");
+}
+</file>
+
+<file path="tsconfig.json">
+{
+  "compilerOptions": {
+    "target": "ES2017",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "preserve",
+    "incremental": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    },
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ]
+  },
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "exclude": ["node_modules"]
+}
+</file>
+
+<file path="tsconfig.seed.json">
+{
+  "compilerOptions": {
+    "target": "es5",
+    "module": "commonjs",
+    "lib": ["es6"],
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true
+  }
+}
+</file>
+
+<file path="prisma/seed.ts">
+import { PrismaClient } from '@prisma/client'
+const prisma = new PrismaClient()
+
+async function main() {
+  // 取り組み集プロジェクトを作成
+  const project1 = await prisma.project.create({
+    data: {
+      name: "取り組み集",
+      projectManager: "鈴木PM",
+      webhookUrlKey: "TORIKUMI_WEBHOOK_URL",
+      tasks: {
+        create: [
+          {
+            title: "機能A：設計",
+            dueDate: new Date("2025-05-01"),
+            assignee: "田中",
+            status: "IN_PROGRESS",
+            tags: "設計,重要",
+          },
+          {
+            title: "機能B：実装",
+            dueDate: new Date("2025-05-15"),
+            assignee: "佐藤",
+            status: "TODO",
+            tags: "実装",
+          },
+          {
+            title: "バグ修正",
+            dueDate: new Date("2025-04-25"),
+            assignee: "山田",
+            status: "REVIEW",
+            tags: "バグ,緊急",
+          }
+        ]
+      }
+    },
+  })
+
+  // ものがたりプロジェクトを作成
+  const project2 = await prisma.project.create({
+    data: {
+      name: "ものがたり",
+      projectManager: "田中PM",
+      webhookUrlKey: "MONOGATARI_WEBHOOK_URL",
+      tasks: {
+        create: [
+          {
+            title: "企画立案",
+            dueDate: new Date("2025-05-10"),
+            assignee: "山田",
+            status: "IN_PROGRESS",
+            tags: "企画,重要",
+          },
+          {
+            title: "ストーリーボード作成",
+            dueDate: new Date("2025-05-20"),
+            assignee: "佐藤",
+            status: "TODO",
+            tags: "デザイン",
+          }
+        ]
+      }
+    },
+  })
+
+  console.log("サンプルデータを作成しました:", {
+    projects: [
+      { id: project1.id, name: project1.name },
+      { id: project2.id, name: project2.name }
+    ]
+  })
+}
+
+main()
+  .then(async () => {
+    await prisma.$disconnect()
+  })
+  .catch(async (e) => {
+    console.error(e)
+    await prisma.$disconnect()
+    process.exit(1)
+  })
+</file>
+
+<file path="src/app/page.tsx">
+// src/app/page.tsx
+"use client";
+
+import React, { useState, useEffect } from "react";
+import { Task, Project } from "@/types";
+import { TaskForm } from "@/components/TaskForm";
+import { KanbanBoard } from "@/components/KanbanBoard";
+
+export default function Home() {
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [projectId, setProjectId] = useState<string>("");
+  const [tasks, setTasks] = useState<Task[]>([]);
+
+  // ── プロジェクト一覧を初回一度だけ取得 ──
+  useEffect(() => {
+    fetch("/api/projects")
+      .then((r) => r.json())
+      .then((p: Project[]) => {
+        setProjects(p);
+        if (p.length > 0) setProjectId(p[0].id);
+      })
+      .catch(console.error);
+  }, []);
+
+  // ── projectId が変わるたびに、そのプロジェクトのタスクを取得 ──
+  useEffect(() => {
+    if (!projectId) return;
+    fetch(`/api/tasks?projectId=${projectId}`)
+      .then((r) => r.json())
+      .then((data: Task[]) => setTasks(data))
+      .catch(console.error);
+  }, [projectId]);
+
+  // ── 新しいタスクができたときに Board に追加 ──
+  const handleCreated = (t: Task) => {
+    if (t.projectId === projectId) {
+      setTasks((prev) => [...prev, t]);
+    }
+  };
+
+  // ── プロジェクトが更新されたときの処理を追加 ──
+  const handleProjectUpdated = (updatedProject: Project) => {
+    setProjects(prev => prev.map(p => 
+      p.id === updatedProject.id ? updatedProject : p
+    ));
+  };
+
+  return (
+    <main className="p-4">
+      <h1 className="text-2xl font-bold mb-4">Kanban Board</h1>
+
+      {/* タスク作成フォーム */}
+      <TaskForm
+        projects={projects}
+        projectId={projectId}
+        setProjectId={setProjectId}
+        onCreated={handleCreated}
+        onProjectUpdated={handleProjectUpdated}
+      />
+
+      {/* Board 本体 */}
+      <KanbanBoard tasks={tasks} setTasks={setTasks} />
+    </main>
+  );
+}
+</file>
+
+<file path="src/components/KanbanBoard.tsx">
+// src/components/KanbanBoard.tsx
+"use client";
+
+import React, { useState } from "react";
+import {
+  DndContext,
+  DragEndEvent,
+  MouseSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  DragStartEvent,
+  DragOverEvent,
+  useDroppable,
+  useDraggable,
+  rectIntersection,
+} from "@dnd-kit/core";
+import { Task, Status } from "@/types";
+
+type Props = {
+  tasks: Task[];
+  setTasks: React.Dispatch<React.SetStateAction<Task[]>>;
+};
+
+export function KanbanBoard({ tasks, setTasks }: Props) {
+  // シンプルなセンサー設定
+  const mouseSensor = useSensor(MouseSensor);
+  const touchSensor = useSensor(TouchSensor);
+  const sensors = useSensors(mouseSensor, touchSensor);
+
+  // ドラッグ開始時の処理
+  const handleDragStart = (event: DragStartEvent) => {
+    console.log("🟦 Drag Start:", event.active.id);
+  };
+
+  // ドラッグ中の処理
+  const handleDragOver = (event: DragOverEvent) => {
+    console.log("🟨 Drag Over:", {
+      active: event.active.id,
+      over: event.over?.id,
+    });
+  };
+
+  // ドラッグ終了時の処理
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    console.log("🛑 Drag End:", { active: active.id, over: over?.id });
+
+    if (!over) {
+      console.log("ドロップ先が見つかりませんでした");
+      return;
+    }
+
+    const taskId = String(active.id).replace("task-", "");
+    const newStatus = String(over.id) as Status;
+    console.log("Moving task", taskId, "to", newStatus);
+
+    // 同じステータスへのドロップは無視
+    const currentTask = tasks.find(t => t.id === Number(taskId));
+    if (currentTask?.status === newStatus) {
+      console.log("Same status, skipping update");
+      return;
+    }
+
+    // 楽観的UI更新
+    setTasks((prev) =>
+      prev.map((t) =>
+        t.id === Number(taskId) ? { ...t, status: newStatus } : t
+      )
+    );
+
+    try {
+      const res = await fetch(`/api/tasks/${taskId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      });
+
+      if (!res.ok) {
+        throw new Error(await res.text());
+      }
+
+      const updatedTask = await res.json();
+      console.log("Task updated successfully:", updatedTask);
+
+    } catch (err) {
+      console.error("Failed to update task:", err);
+      alert("タスクの更新に失敗しました");
+
+      // APIが失敗した場合は元のステータスに戻す
+      setTasks((prev) =>
+        prev.map((t) =>
+          t.id === Number(taskId) ? { ...t, status: currentTask?.status ?? t.status } : t
+        )
+      );
+    }
+  };
+
+  const columns: { key: Status; title: string }[] = [
+    { key: "BACKLOG", title: "Backlog" },
+    { key: "ON_HOLD", title: "On Hold" },
+    { key: "IN_PROGRESS", title: "In Progress" },
+    { key: "REVIEW", title: "Review" },
+    { key: "DONE", title: "Done" },
+  ];
+
+  return (
+    <DndContext
+      sensors={sensors}
+      collisionDetection={rectIntersection}
+      onDragStart={handleDragStart}
+      onDragOver={handleDragOver}
+      onDragEnd={handleDragEnd}
+    >
+      <div className="flex gap-4 overflow-x-auto pb-4">
+        {columns.map((col) => (
+          <Column key={col.key} column={col} tasks={tasks} setTasks={setTasks} />
+        ))}
+      </div>
+    </DndContext>
+  );
+}
+
+// カラムコンポーネントを更新
+function Column({ 
+  column, 
+  tasks,
+  setTasks
+}: { 
+  column: { key: Status; title: string }; 
+  tasks: Task[];
+  setTasks: React.Dispatch<React.SetStateAction<Task[]>>;
+}) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: column.key,
+    data: {
+      type: "COLUMN",
+      column,
+    },
+  });
+
+  const columnTasks = tasks.filter((t) => t.status === column.key);
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={`relative w-64 shrink-0 p-2 rounded min-h-[400px] border ${
+        isOver 
+          ? "border-blue-500 bg-gray-100/80" 
+          : "border-gray-300 bg-gray-50/80"
+      }`}
+    >
+      <h3 className="font-semibold mb-3">{column.title}</h3>
+      <div className="space-y-2">
+        {columnTasks.map((task) => (
+          <TaskCard key={task.id} task={task} setTasks={setTasks} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function TaskCard({ task, setTasks }: { task: Task; setTasks: React.Dispatch<React.SetStateAction<Task[]>> }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [title, setTitle] = useState(task.title);
+  const [assignee, setAssignee] = useState(task.assignee);
+  const [dueDate, setDueDate] = useState(task.dueDate.split('T')[0]); // YYYY-MM-DD形式に変換
+  const [tags, setTags] = useState(task.tags);
+
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    isDragging,
+  } = useDraggable({
+    id: `task-${task.id}`,
+    data: {
+      type: "TASK",
+      task,
+    },
+  });
+
+  const style: React.CSSProperties = {
+    transform: transform 
+      ? `translate3d(${transform.x}px, ${transform.y}px, 0)`
+      : undefined,
+    opacity: isDragging ? 0.5 : undefined,
+  };
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    
+    try {
+      const res = await fetch(`/api/tasks/${task.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title,
+          assignee,
+          dueDate: new Date(dueDate).toISOString(),
+          tags,
+          status: task.status, // 現在のステータスを維持
+          projectId: task.projectId, // プロジェクトIDを維持
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error(await res.text());
+      }
+
+      const updated = await res.json();
+      setTasks(prev => prev.map(t => 
+        t.id === task.id ? updated : t
+      ));
+      setIsEditing(false);
+    } catch (err) {
+      console.error(err);
+      alert("タスクの更新に失敗しました");
+    }
+  }
+
+  async function handleDelete() {
+    if (!confirm("このタスクを削除してもよろしいですか？")) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/tasks/${task.id}`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) {
+        throw new Error(await res.text());
+      }
+
+      setTasks(prev => prev.filter(t => t.id !== task.id));
+    } catch (err) {
+      console.error(err);
+      alert("タスクの削除に失敗しました");
+    }
+  }
+
+  if (isEditing) {
+    return (
+      <form onSubmit={handleSubmit} className="bg-white p-3 rounded shadow">
+        <input
+          type="text"
+          value={title}
+          onChange={e => setTitle(e.target.value)}
+          className="block w-full border p-1 rounded mb-2"
+          placeholder="タイトル"
+          required
+        />
+        <input
+          type="text"
+          value={assignee}
+          onChange={e => setAssignee(e.target.value)}
+          className="block w-full border p-1 rounded mb-2"
+          placeholder="担当者"
+          required
+        />
+        <input
+          type="date"
+          value={dueDate}
+          onChange={e => setDueDate(e.target.value)}
+          className="block w-full border p-1 rounded mb-2"
+          required
+        />
+        <input
+          type="text"
+          value={tags}
+          onChange={e => setTags(e.target.value)}
+          className="block w-full border p-1 rounded mb-2"
+          placeholder="タグ（カンマ区切り）"
+        />
+        <div className="flex gap-2">
+          <button
+            type="submit"
+            className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
+          >
+            保存
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setTitle(task.title);
+              setAssignee(task.assignee);
+              setDueDate(task.dueDate.split('T')[0]);
+              setTags(task.tags);
+              setIsEditing(false);
+            }}
+            className="px-3 py-1 bg-gray-100 rounded hover:bg-gray-200"
+          >
+            キャンセル
+          </button>
+        </div>
+      </form>
+    );
+  }
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...listeners}
+      {...attributes}
+      className="bg-white p-3 rounded shadow cursor-grab select-none touch-none"
+    >
+      <div className="flex gap-2">
+        <div className="font-medium">
+          {task.title}
+        </div>
+        <div className="flex gap-1">
+          <button
+            onClick={() => setIsEditing(true)}
+            className="px-2 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded"
+          >
+            編集
+          </button>
+          <button
+            onClick={handleDelete}
+            className="px-2 py-1 text-sm bg-red-100 hover:bg-red-200 rounded"
+          >
+            削除
+          </button>
+        </div>
+      </div>
+      <div className="text-xs text-gray-600">
+        期限: {new Date(task.dueDate).toLocaleDateString()}
+      </div>
+      <div className="text-xs text-gray-600">
+        担当: {task.assignee}
+      </div>
+      {task.tags && (
+        <div className="text-xs text-gray-600">
+          タグ: {task.tags}
+        </div>
+      )}
+    </div>
+  );
+}
+</file>
+
+<file path="package.json">
+{
+  "name": "kanban-app",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --turbopack",
+    "build": "prisma generate && next build",
+    "start": "next start",
+    "lint": "next lint",
+    "db:seed": "npx ts-node prisma/seed.ts"
+  },
+  "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
+    "@prisma/client": "^6.6.0",
+    "next": "15.3.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3",
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20.17.30",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "15.3.1",
+    "prisma": "^6.6.0",
+    "tailwindcss": "^4",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.3"
+  },
+  "prisma": {
+    "seed": "ts-node prisma/seed.ts"
+  }
+}
+</file>
+
+<file path="src/app/api/projects/[id]/route.ts">
+import { NextRequest, NextResponse } from "next/server";
+import prisma from "@/lib/prisma";
+
+interface ProjectUpdateBody {
+  projectManager: string;
+}
+
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+): Promise<NextResponse> {
+  const { id } = await params;
+
+  try {
+    const body = (await req.json()) as ProjectUpdateBody;
+
+    if (!body.projectManager || typeof body.projectManager !== "string" || !body.projectManager.trim()) {
+      return NextResponse.json({ error: "責任者は必須です" }, { status: 400 });
+    }
+
+    const project = await prisma.project.update({
+      where: { id },
+      data: { projectManager: body.projectManager },
+    });
+
+    return NextResponse.json(project);
+  } catch (error: unknown) {
+    console.error("PATCH /api/projects/[id] エラー:", error);
+    const message = error instanceof Error ? error.message : "サーバーエラー";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+</file>
+
+<file path="src/app/api/tasks/route.ts">
+// src/app/api/tasks/route.ts
+import { NextRequest, NextResponse } from "next/server";
+import prisma from "@/lib/prisma";
+import { notifyTeams } from "@/lib/notifyTeams";
+import { Status } from "@prisma/client";
+
+// リクエストボディの型定義
+interface TaskCreateBody {
+  title?: unknown;
+  dueDate?: unknown;
+  assignee?: unknown;
+  tags?: unknown;
+  status?: unknown;
+  projectId?: unknown;
+}
+
+export async function GET(request: NextRequest): Promise<NextResponse> {
+  try {
+    const projectId = request.nextUrl.searchParams.get("projectId") ?? undefined;
+    const tasks = await prisma.task.findMany({
+      where: projectId ? { projectId } : undefined,
+      orderBy: { dueDate: "asc" },
+    });
+    return NextResponse.json(tasks);
+  } catch (error: unknown) {
+    console.error("GET /api/tasks エラー:", error);
+    return NextResponse.json({ error: "サーバーエラー" }, { status: 500 });
+  }
+}
+
+export async function POST(request: NextRequest): Promise<NextResponse> {
+  try {
+    const body = (await request.json()) as TaskCreateBody;
+
+    if (
+      typeof body.title !== "string" ||
+      typeof body.dueDate !== "string" ||
+      typeof body.assignee !== "string" ||
+      typeof body.projectId !== "string"
+    ) {
+      return NextResponse.json(
+        { error: "title, dueDate, assignee, projectId は必須です" },
+        { status: 400 }
+      );
+    }
+
+    const title = body.title;
+    const dueDateStr = body.dueDate;
+    const assignee = body.assignee;
+    const projectId = body.projectId;
+    const tags = typeof body.tags === "string" ? body.tags : "";
+    let newStatus: Status = "IN_PROGRESS";
+    if (
+      typeof body.status === "string" &&
+      Object.values(Status).includes(body.status as Status)
+    ) {
+      newStatus = body.status as Status;
+    }
+
+    const dup = await prisma.task.findFirst({
+      where: { title, assignee, projectId },
+    });
+    if (dup) {
+      return NextResponse.json(
+        { error: "同じタイトル＆担当者のタスクが既に存在します" },
+        { status: 409 }
+      );
+    }
+
+    const task = await prisma.task.create({
+      data: {
+        title,
+        dueDate: new Date(dueDateStr),
+        assignee,
+        tags,
+        status: newStatus,
+        projectId,
+      },
+    });
+
+    const project = await prisma.project.findUnique({ where: { id: projectId } });
+    if (project?.projectManager && newStatus === "IN_PROGRESS") {
+      const appUrl = process.env.DEPLOY_URL ?? "";
+      const projectUrl = `${process.env.PROJECT_BASE_URL}/${projectId}`;
+      const text =
+        `@${assignee}さん\n` +
+        `新しいタスク「${title}」が IN_PROGRESS に入りました。\n\n` +
+        `• 期限: ${new Date(dueDateStr).toLocaleDateString()}\n` +
+        (tags ? `• タグ: ${tags}\n` : "") +
+        `\n📱 ${appUrl}\n🔗 ${projectUrl}`;
+      await notifyTeams(projectId, text);
+    }
+
+    return NextResponse.json(task, { status: 201 });
+  } catch (error: unknown) {
+    console.error("POST /api/tasks エラー:", error);
+    return NextResponse.json({ error: "サーバーエラー" }, { status: 500 });
+  }
+}
+</file>
+
+<file path="src/app/api/projects/route.ts">
+// src/app/api/projects/route.ts
+import { NextResponse } from "next/server";
+import prisma from "@/lib/prisma";
+
+export async function GET(): Promise<NextResponse> {
+  try {
+    const projects = await prisma.project.findMany({
+      orderBy: { name: "asc" },
+    });
+    return NextResponse.json(projects);
+  } catch (error: unknown) {
+    console.error("GET /api/projects エラー:", error);
+    return NextResponse.json([]); // 安全な空配列返却
+  }
+}
+</file>
+
+<file path="src/app/api/tasks/[id]/route.ts">
+import { NextRequest, NextResponse } from "next/server";
+import prisma from "@/lib/prisma";
+import { Status } from "@prisma/client";
+
+interface TaskUpdateBody {
+  title?: string;
+  dueDate?: string;
+  assignee?: string;
+  tags?: string;
+  status?: string;
+}
+
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+): Promise<NextResponse> {
+  const { id } = await params;
+
+  try {
+    const body = (await req.json()) as TaskUpdateBody;
+
+    const data: Partial<{
+      title: string;
+      dueDate: string;
+      assignee: string;
+      tags: string;
+      status: Status;
+    }> = {};
+
+    if (body.title) data.title = body.title;
+    if (body.dueDate) data.dueDate = body.dueDate;
+    if (body.assignee) data.assignee = body.assignee;
+    if (body.tags) data.tags = body.tags;
+
+    if (
+      body.status &&
+      Object.values(Status).includes(body.status as Status)
+    ) {
+      data.status = body.status as Status;
+    }
+
+    if (Object.keys(data).length === 0) {
+      return NextResponse.json(
+        { error: "更新項目がありません" },
+        { status: 400 }
+      );
+    }
+
+    const before = await prisma.task.findUnique({
+      where: { id: Number(id) },
+      include: { project: true },
+    });
+
+    if (!before) {
+      return NextResponse.json(
+        { error: "タスクが見つかりません" },
+        { status: 404 }
+      );
+    }
+
+    const after = await prisma.task.update({
+      where: { id: Number(id) },
+      data,
+    });
+
+    return NextResponse.json(after);
+  } catch (error: unknown) {
+    console.error("PATCH /api/tasks/[id] エラー:", error);
+    const message = error instanceof Error ? error.message : "サーバーエラー";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+export async function DELETE(
+  _req: NextRequest, // eslint-disable-line @typescript-eslint/no-unused-vars
+  { params }: { params: Promise<{ id: string }> }
+): Promise<NextResponse> {
+  const { id } = await params;
+
+  try {
+    const task = await prisma.task.findUnique({
+      where: { id: Number(id) },
+      include: { project: true },
+    });
+
+    if (!task) {
+      return NextResponse.json(
+        { error: "タスクが見つかりません" },
+        { status: 404 }
+      );
+    }
+
+    await prisma.task.delete({ where: { id: Number(id) } });
+
+    return new NextResponse(null, { status: 204 });
+  } catch (error: unknown) {
+    console.error("DELETE /api/tasks/[id] エラー:", error);
+    const message = error instanceof Error ? error.message : "サーバーエラー";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+</file>
+
+</files>

@@ -16,18 +16,24 @@ export default function Home() {
     fetch("/api/projects")
       .then((r) => r.json())
       .then((p: Project[]) => {
+        console.log("📁 プロジェクト一覧:", p); // ← 追加
         setProjects(p);
-        if (p.length > 0) setProjectId(p[0].id);
-      })
-      .catch(console.error);
-  }, []);
+        if (p.length > 0) {
+          console.log("✅ projectId 初期セット:", p[0].id); // ← 追加
+          setProjectId(p[0].id);
+        }
+      });
+  }, []);  
 
   // ── projectId が変わるたびに、そのプロジェクトのタスクを取得 ──
   useEffect(() => {
     if (!projectId) return;
     fetch(`/api/tasks?projectId=${projectId}`)
       .then((r) => r.json())
-      .then((data: Task[]) => setTasks(data))
+      .then((data: Task[]) => {
+        console.log("🎯 タスクデータ:", data);  // ← 追加
+        setTasks(data);
+      })
       .catch(console.error);
   }, [projectId]);
 

@@ -2,6 +2,8 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 
+console.log("✅ DATABASE_URL:", process.env.DATABASE_URL);
+
 export async function GET(): Promise<NextResponse> {
   try {
     const projects = await prisma.project.findMany({

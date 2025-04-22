@@ -9,3 +9,5 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 export default prisma;
+
+console.log("✅ 環境変数:", process.env.DATABASE_URL);
