@@ -1,30 +1,22 @@
-// src/app/api/tasks/[id]/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { Status } from "@prisma/client";
 
-// リクエストボディ用の型
 interface TaskUpdateBody {
-  title?: unknown;
-  dueDate?: unknown;
-  assignee?: unknown;
-  tags?: unknown;
-  status?: unknown;
-}
-
-// context の型を定義
-interface ContextWithId {
-  params: {
-    id: string;
-  };
+  title?: string;
+  dueDate?: string;
+  assignee?: string;
+  tags?: string;
+  status?: string;
 }
 
 export async function PATCH(
   req: NextRequest,
-  context: ContextWithId
+  { params }: { params: Promise<{ id: string }> }
 ): Promise<NextResponse> {
+  const { id } = await params;
+
   try {
-    const id = Number(context.params.id);
     const body = (await req.json()) as TaskUpdateBody;
 
     const data: Partial<{
@@ -35,12 +27,13 @@ export async function PATCH(
       status: Status;
     }> = {};
 
-    if (typeof body.title === "string") data.title = body.title;
-    if (typeof body.dueDate === "string") data.dueDate = body.dueDate;
-    if (typeof body.assignee === "string") data.assignee = body.assignee;
-    if (typeof body.tags === "string") data.tags = body.tags;
+    if (body.title) data.title = body.title;
+    if (body.dueDate) data.dueDate = body.dueDate;
+    if (body.assignee) data.assignee = body.assignee;
+    if (body.tags) data.tags = body.tags;
+
     if (
-      typeof body.status === "string" &&
+      body.status &&
       Object.values(Status).includes(body.status as Status)
     ) {
       data.status = body.status as Status;
@@ -54,9 +47,10 @@ export async function PATCH(
     }
 
     const before = await prisma.task.findUnique({
-      where: { id },
+      where: { id: Number(id) },
       include: { project: true },
     });
+
     if (!before) {
       return NextResponse.json(
         { error: "タスクが見つかりません" },
@@ -64,28 +58,31 @@ export async function PATCH(
       );
     }
 
-    const after = await prisma.task.update({ where: { id }, data });
+    const after = await prisma.task.update({
+      where: { id: Number(id) },
+      data,
+    });
+
     return NextResponse.json(after);
   } catch (error: unknown) {
     console.error("PATCH /api/tasks/[id] エラー:", error);
     const message = error instanceof Error ? error.message : "サーバーエラー";
-    return NextResponse.json(
-      { error: message },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
 export async function DELETE(
-  _req: NextRequest,
-  context: ContextWithId
+  _req: NextRequest, // eslint-disable-line @typescript-eslint/no-unused-vars
+  { params }: { params: Promise<{ id: string }> }
 ): Promise<NextResponse> {
+  const { id } = await params;
+
   try {
-    const id = Number(context.params.id);
     const task = await prisma.task.findUnique({
-      where: { id },
+      where: { id: Number(id) },
       include: { project: true },
     });
+
     if (!task) {
       return NextResponse.json(
         { error: "タスクが見つかりません" },
@@ -93,14 +90,12 @@ export async function DELETE(
       );
     }
 
-    await prisma.task.delete({ where: { id } });
+    await prisma.task.delete({ where: { id: Number(id) } });
+
     return new NextResponse(null, { status: 204 });
   } catch (error: unknown) {
     console.error("DELETE /api/tasks/[id] エラー:", error);
     const message = error instanceof Error ? error.message : "サーバーエラー";
-    return NextResponse.json(
-      { error: message },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
