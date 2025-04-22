@@ -12,12 +12,19 @@ interface TaskUpdateBody {
   status?: unknown;
 }
 
+// context の型を定義
+interface ContextWithId {
+  params: {
+    id: string;
+  };
+}
+
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  context: ContextWithId
 ): Promise<NextResponse> {
   try {
-    const id = Number(params.id);
+    const id = Number(context.params.id);
     const body = (await req.json()) as TaskUpdateBody;
 
     const data: Partial<{
@@ -58,7 +65,6 @@ export async function PATCH(
     }
 
     const after = await prisma.task.update({ where: { id }, data });
-    // 通知ロジックは既存コードを流用（notifyTeamsはimportから削除しました）
     return NextResponse.json(after);
   } catch (error: unknown) {
     console.error("PATCH /api/tasks/[id] エラー:", error);
@@ -72,10 +78,10 @@ export async function PATCH(
 
 export async function DELETE(
   _req: NextRequest,
-  { params }: { params: { id: string } }
+  context: ContextWithId
 ): Promise<NextResponse> {
   try {
-    const id = Number(params.id);
+    const id = Number(context.params.id);
     const task = await prisma.task.findUnique({
       where: { id },
       include: { project: true },
@@ -88,7 +94,6 @@ export async function DELETE(
     }
 
     await prisma.task.delete({ where: { id } });
-    // 通知ロジックは既存コードを流用（notifyTeamsはimportから削除しました）
     return new NextResponse(null, { status: 204 });
   } catch (error: unknown) {
     console.error("DELETE /api/tasks/[id] エラー:", error);
