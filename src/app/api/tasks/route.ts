@@ -1,10 +1,9 @@
 // src/app/api/tasks/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { notifyTeams } from "@/lib/notifyTeams";
+import { notifyOnStatusChange } from "@/lib/notifyTriggers";
 import { Status } from "@prisma/client";
 
-// リクエストボディの型定義
 interface TaskCreateBody {
   title?: unknown;
   dueDate?: unknown;
@@ -24,7 +23,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json(tasks);
   } catch (error: unknown) {
     console.error("GET /api/tasks エラー:", error);
-    return NextResponse.json({ error: "サーバーエラー" }, { status: 500 });
+    return NextResponse.json(
+      { error: "サーバーエラー" },
+      { status: 500 }
+    );
   }
 }
 
@@ -32,6 +34,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     const body = (await request.json()) as TaskCreateBody;
 
+    // 必須フィールドチェック
     if (
       typeof body.title !== "string" ||
       typeof body.dueDate !== "string" ||
@@ -44,11 +47,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    const title = body.title;
-    const dueDateStr = body.dueDate;
-    const assignee = body.assignee;
-    const projectId = body.projectId;
-    const tags = typeof body.tags === "string" ? body.tags : "";
+    // ステータス初期値
     let newStatus: Status = "IN_PROGRESS";
     if (
       typeof body.status === "string" &&
@@ -57,8 +56,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       newStatus = body.status as Status;
     }
 
+    // 重複チェック
     const dup = await prisma.task.findFirst({
-      where: { title, assignee, projectId },
+      where: {
+        title: body.title,
+        assignee: body.assignee,
+        projectId: body.projectId,
+      },
     });
     if (dup) {
       return NextResponse.json(
@@ -67,33 +71,27 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
+    // タスク作成
     const task = await prisma.task.create({
       data: {
-        title,
-        dueDate: new Date(dueDateStr),
-        assignee,
-        tags,
+        title: body.title,
+        dueDate: new Date(body.dueDate),
+        assignee: body.assignee,
+        tags: typeof body.tags === "string" ? body.tags : "",
         status: newStatus,
-        projectId,
+        projectId: body.projectId,
       },
     });
 
-    const project = await prisma.project.findUnique({ where: { id: projectId } });
-    if (project?.projectManager && newStatus === "IN_PROGRESS") {
-      const appUrl = process.env.DEPLOY_URL ?? "";
-      const projectUrl = `${process.env.PROJECT_BASE_URL}/${projectId}`;
-      const text =
-        `@${assignee}さん\n` +
-        `新しいタスク「${title}」が IN_PROGRESS に入りました。\n\n` +
-        `• 期限: ${new Date(dueDateStr).toLocaleDateString()}\n` +
-        (tags ? `• タグ: ${tags}\n` : "") +
-        `\n📱 ${appUrl}\n🔗 ${projectUrl}`;
-      await notifyTeams(projectId, text);
-    }
+    // ① 新規作成時も IN_PROGRESS 通知
+    await notifyOnStatusChange(task);
 
     return NextResponse.json(task, { status: 201 });
   } catch (error: unknown) {
     console.error("POST /api/tasks エラー:", error);
-    return NextResponse.json({ error: "サーバーエラー" }, { status: 500 });
+    return NextResponse.json(
+      { error: "サーバーエラー" },
+      { status: 500 }
+    );
   }
 }
