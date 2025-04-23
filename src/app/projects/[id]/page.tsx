@@ -6,23 +6,22 @@ import { Task, Project } from "@/types";
 import { TaskForm } from "@/components/TaskForm";
 import { KanbanBoard } from "@/components/KanbanBoard";
 
-interface PageProps {
+// ↓ ここを Promise ではなく同期の型に変更
+export default function ProjectPage({
+  params,
+}: {
   params: { id: string };
-}
-
-export default function ProjectPage({ params }: PageProps) {
+}) {
   const projectId = params.id;
   const [projects, setProjects] = useState<Project[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
 
-  // プロジェクト一覧（ヘッダーやフォーム用に取得）
   useEffect(() => {
     fetch("/api/projects")
       .then((r) => r.json())
       .then((p: Project[]) => setProjects(p));
   }, []);
 
-  // この projectId のタスクを取得
   useEffect(() => {
     fetch(`/api/tasks?projectId=${projectId}`)
       .then((r) => r.json())
@@ -36,7 +35,6 @@ export default function ProjectPage({ params }: PageProps) {
     }
   };
 
-  // プロジェクト情報が必要ならここでも更新ハンドラを渡せます
   const handleProjectUpdated = (updated: Project) => {
     setProjects((prev) =>
       prev.map((p) => (p.id === updated.id ? updated : p))
