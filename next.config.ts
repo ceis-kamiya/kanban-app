@@ -1,10 +1,8 @@
+// next.config.ts
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  env: {
-    DEPLOY_URL: "https://kanban-app.vercel.app",  // デプロイ時に実際のURLに変更
-    PROJECT_BASE_URL: "https://kanban-app.vercel.app/projects"  // プロジェクトページのベースURL
-  }
+  // env セクションは削除。DEPLOY_URL は .env.local から取ります
 };
 
 export default nextConfig;

@@ -42,7 +42,10 @@ export async function PATCH(
   if (body.dueDate) data.dueDate = new Date(body.dueDate);
   if (body.assignee) data.assignee = body.assignee;
   if (body.tags) data.tags = body.tags;
-  if (body.status && Object.values(Status).includes(body.status as Status)) {
+  if (
+    body.status &&
+    Object.values(Status).includes(body.status as Status)
+  ) {
     data.status = body.status as Status;
   }
 
@@ -64,7 +67,10 @@ export async function PATCH(
   if (data.title && data.title !== before.title) {
     changes.push(`タイトル: "${before.title}" → "${after.title}"`);
   }
-  if (data.dueDate && data.dueDate.getTime() !== before.dueDate.getTime()) {
+  if (
+    data.dueDate &&
+    data.dueDate.getTime() !== before.dueDate.getTime()
+  ) {
     const oldDate = before.dueDate.toISOString().slice(0, 10);
     const newDate = after.dueDate.toISOString().slice(0, 10);
     changes.push(`期限: ${oldDate} → ${newDate}`);
@@ -77,8 +83,8 @@ export async function PATCH(
   }
 
   if (changes.length > 0) {
-    const base = process.env.PROJECT_BASE_URL || "";
-    const projectUrl = `${base}/${after.projectId}`;
+    // ここだけ DEPLOY_URL のルートを使う
+    const projectUrl = process.env.DEPLOY_URL!;
 
     const text =
       `@${after.assignee}さん  

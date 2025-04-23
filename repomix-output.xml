@@ -67,7 +67,6 @@ src/app/api/tasks/route.ts
 src/app/globals.css
 src/app/layout.tsx
 src/app/page.tsx
-src/app/projects/[id]/page.tsx
 src/components/KanbanBoard.tsx
 src/components/ProjectManagerForm.tsx
 src/components/TaskForm.tsx
@@ -464,13 +463,11 @@ export interface Task {
 </file>
 
 <file path="next.config.ts">
+// next.config.ts
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  env: {
-    DEPLOY_URL: "https://kanban-app.vercel.app",  // デプロイ時に実際のURLに変更
-    PROJECT_BASE_URL: "https://kanban-app.vercel.app/projects"  // プロジェクトページのベースURL
-  }
+  // process.env から直接読み込むため、env セクションは削除しました
 };
 
 export default nextConfig;
@@ -516,7 +513,8 @@ export async function GET(request: NextRequest) {
   const todayStr = formatYMD(today);
   const in3Str = formatYMD(in3);
 
-  const base = process.env.PROJECT_BASE_URL || "";
+  // 🚀 リンクはルート URL のみ
+  const base = process.env.DEPLOY_URL || "";
 
   const rawTasks = await prisma.$queryRaw<{
     id: number;
@@ -540,10 +538,13 @@ export async function GET(request: NextRequest) {
 
   for (const task of rawTasks) {
     const d = new Date(task.dueDate);
-    const dateStr = formatYMD(new Date(d.getFullYear(), d.getMonth(), d.getDate()));
+    const dateStr = formatYMD(
+      new Date(d.getFullYear(), d.getMonth(), d.getDate())
+    );
     const assignee = task.assignee;
     const manager = task.projectManager;
-    const projectUrl = `${base}/${task.projectId}`;
+    // 🚀 リンクはルート URL のみ
+    const projectUrl = base;
 
     if (dateStr === in3Str) {
       await notifyTeams(
@@ -569,70 +570,6 @@ export async function GET(request: NextRequest) {
 }
 </file>
 
-<file path="src/app/projects/[id]/page.tsx">
-// src/app/projects/[id]/page.tsx
-"use client";
-
-import React, { useState, useEffect } from "react";
-import { Task, Project } from "@/types";
-import { TaskForm } from "@/components/TaskForm";
-import { KanbanBoard } from "@/components/KanbanBoard";
-
-// ↓ ここを Promise ではなく同期の型に変更
-export default function ProjectPage({
-  params,
-}: {
-  params: { id: string };
-}) {
-  const projectId = params.id;
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [tasks, setTasks] = useState<Task[]>([]);
-
-  useEffect(() => {
-    fetch("/api/projects")
-      .then((r) => r.json())
-      .then((p: Project[]) => setProjects(p));
-  }, []);
-
-  useEffect(() => {
-    fetch(`/api/tasks?projectId=${projectId}`)
-      .then((r) => r.json())
-      .then((ts: Task[]) => setTasks(ts))
-      .catch(console.error);
-  }, [projectId]);
-
-  const handleCreated = (t: Task) => {
-    if (t.projectId === projectId) {
-      setTasks((prev) => [...prev, t]);
-    }
-  };
-
-  const handleProjectUpdated = (updated: Project) => {
-    setProjects((prev) =>
-      prev.map((p) => (p.id === updated.id ? updated : p))
-    );
-  };
-
-  return (
-    <main className="p-4">
-      <h1 className="text-2xl font-bold mb-4">
-        {projects.find((p) => p.id === projectId)?.name || "プロジェクト"}
-      </h1>
-
-      <TaskForm
-        projects={projects}
-        projectId={projectId}
-        setProjectId={() => {}}
-        onCreated={handleCreated}
-        onProjectUpdated={handleProjectUpdated}
-      />
-
-      <KanbanBoard tasks={tasks} setTasks={setTasks} />
-    </main>
-  );
-}
-</file>
-
 <file path="src/components/TaskForm.tsx">
 // src/components/TaskForm.tsx
 "use client";
@@ -649,12 +586,12 @@ type Props = {
   onProjectUpdated: (project: Project) => void;
 };
 
-export function TaskForm({ 
-  projects, 
-  projectId, 
-  setProjectId, 
+export function TaskForm({
+  projects,
+  projectId,
+  setProjectId,
   onCreated,
-  onProjectUpdated 
+  onProjectUpdated,
 }: Props) {
   const [title, setTitle] = useState("");
   const [assignee, setAssignee] = useState("");
@@ -666,13 +603,15 @@ export function TaskForm({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!projectId) {
+      alert("プロジェクトを選択してください");
+      return;
+    }
 
     try {
       const res = await fetch("/api/tasks", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title,
           assignee,
@@ -681,20 +620,12 @@ export function TaskForm({
           projectId,
         }),
       });
-
-      if (!res.ok) {
-        throw new Error(await res.text());
-      }
-
+      if (!res.ok) throw new Error(await res.text());
       const task = await res.json();
       onCreated(task);
-
-      // フォームをリセット
       setTitle("");
       setAssignee("");
       setTags("");
-      // 日付はそのまま
-
     } catch (err) {
       console.error(err);
       alert("タスクの作成に失敗しました");
@@ -711,6 +642,9 @@ export function TaskForm({
             onChange={(e) => setProjectId(e.target.value)}
             className="border p-2 rounded"
           >
+            <option value="" disabled>
+              -- プロジェクトを選択 --
+            </option>
             {projects.map((project) => (
               <option key={project.id} value={project.id}>
                 {project.name}
@@ -724,14 +658,17 @@ export function TaskForm({
             key={`${selectedProject.id}-${projectUpdated}`}
             project={selectedProject}
             onUpdated={(project) => {
-              setProjectUpdated(n => n + 1);
+              setProjectUpdated((n) => n + 1);
               onProjectUpdated(project);
             }}
           />
         )}
       </div>
 
-      <form onSubmit={handleSubmit} className="flex flex-wrap gap-2">
+      <form
+        onSubmit={handleSubmit}
+        className="flex flex-wrap gap-2"
+      >
         <input
           type="text"
           value={title}
@@ -795,7 +732,8 @@ export async function notifyOnStatusChange(
   });
   const manager = project?.projectManager;
 
-  const projectUrl = `${process.env.PROJECT_BASE_URL}/${task.projectId}`;
+  // 🚀 リンクはルート URL のみ
+  const projectUrl = process.env.DEPLOY_URL || "";
 
   // ① In Progress に入ったとき → 担当者へ
   if (task.status === "IN_PROGRESS" && beforeStatus !== "IN_PROGRESS") {
@@ -1093,47 +1031,6 @@ export async function notifyTeams(
 }
 </file>
 
-<file path="package.json">
-{
-  "name": "kanban-app",
-  "version": "0.1.0",
-  "private": true,
-  "scripts": {
-    "dev": "next dev --turbopack",
-    "build": "prisma generate && next build",
-    "type-check": "tsc --noEmit",
-    "start": "next start",
-    "lint": "next lint",
-    "db:seed": "npx ts-node prisma/seed.ts"
-  },
-  "dependencies": {
-    "@dnd-kit/core": "^6.3.1",
-    "@dnd-kit/sortable": "^10.0.0",
-    "@dnd-kit/utilities": "^3.2.2",
-    "@prisma/client": "^6.6.0",
-    "next": "15.3.1",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0"
-  },
-  "devDependencies": {
-    "@eslint/eslintrc": "^3",
-    "@tailwindcss/postcss": "^4",
-    "@types/node": "^20.17.30",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "eslint": "^9",
-    "eslint-config-next": "15.3.1",
-    "prisma": "^6.6.0",
-    "tailwindcss": "^4",
-    "ts-node": "^10.9.2",
-    "typescript": "^5.8.3"
-  },
-  "prisma": {
-    "seed": "ts-node prisma/seed.ts"
-  }
-}
-</file>
-
 <file path="src/app/api/projects/[id]/route.ts">
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
@@ -1188,46 +1085,42 @@ export default function Home() {
     fetch("/api/projects")
       .then((r) => r.json())
       .then((p: Project[]) => {
-        console.log("📁 プロジェクト一覧:", p); // ← 追加
         setProjects(p);
-        if (p.length > 0) {
-          console.log("✅ projectId 初期セット:", p[0].id); // ← 追加
-          setProjectId(p[0].id);
-        }
       });
-  }, []);  
+  }, []);
 
   // ── projectId が変わるたびに、そのプロジェクトのタスクを取得 ──
   useEffect(() => {
-    if (!projectId) return;
+    if (!projectId) {
+      setTasks([]);
+      return;
+    }
     fetch(`/api/tasks?projectId=${projectId}`)
       .then((r) => r.json())
       .then((data: Task[]) => {
-        console.log("🎯 タスクデータ:", data);  // ← 追加
         setTasks(data);
       })
       .catch(console.error);
   }, [projectId]);
 
-  // ── 新しいタスクができたときに Board に追加 ──
   const handleCreated = (t: Task) => {
     if (t.projectId === projectId) {
       setTasks((prev) => [...prev, t]);
     }
   };
 
-  // ── プロジェクトが更新されたときの処理を追加 ──
   const handleProjectUpdated = (updatedProject: Project) => {
-    setProjects(prev => prev.map(p => 
-      p.id === updatedProject.id ? updatedProject : p
-    ));
+    setProjects((prev) =>
+      prev.map((p) =>
+        p.id === updatedProject.id ? updatedProject : p
+      )
+    );
   };
 
   return (
     <main className="p-4">
       <h1 className="text-2xl font-bold mb-4">Kanban Board</h1>
 
-      {/* タスク作成フォーム */}
       <TaskForm
         projects={projects}
         projectId={projectId}
@@ -1236,7 +1129,6 @@ export default function Home() {
         onProjectUpdated={handleProjectUpdated}
       />
 
-      {/* Board 本体 */}
       <KanbanBoard tasks={tasks} setTasks={setTasks} />
     </main>
   );
@@ -1523,6 +1415,47 @@ function TaskCard({ task, setTasks }: TaskCardProps) {
 }
 </file>
 
+<file path="package.json">
+{
+  "name": "kanban-app",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --turbopack",
+    "build": "prisma generate && next build",
+    "type-check": "tsc --noEmit",
+    "start": "next start",
+    "lint": "next lint",
+    "db:seed": "npx ts-node prisma/seed.ts"
+  },
+  "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
+    "@prisma/client": "^6.6.0",
+    "next": "15.3.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3",
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20.17.30",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "15.3.1",
+    "prisma": "^6.6.0",
+    "tailwindcss": "^4",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.3"
+  },
+  "prisma": {
+    "seed": "ts-node prisma/seed.ts"
+  }
+}
+</file>
+
 <file path="src/app/api/tasks/route.ts">
 // src/app/api/tasks/route.ts
 import { NextRequest, NextResponse } from "next/server";
@@ -1686,12 +1619,18 @@ export async function PATCH(
   if (body.dueDate) data.dueDate = new Date(body.dueDate);
   if (body.assignee) data.assignee = body.assignee;
   if (body.tags) data.tags = body.tags;
-  if (body.status && Object.values(Status).includes(body.status as Status)) {
+  if (
+    body.status &&
+    Object.values(Status).includes(body.status as Status)
+  ) {
     data.status = body.status as Status;
   }
 
   if (Object.keys(data).length === 0) {
-    return NextResponse.json({ error: "更新項目がありません" }, { status: 400 });
+    return NextResponse.json(
+      { error: "更新項目がありません" },
+      { status: 400 }
+    );
   }
 
   // 3. タスク更新
@@ -1708,21 +1647,27 @@ export async function PATCH(
   if (data.title && data.title !== before.title) {
     changes.push(`タイトル: "${before.title}" → "${after.title}"`);
   }
-  if (data.dueDate && data.dueDate.getTime() !== before.dueDate.getTime()) {
+  if (
+    data.dueDate &&
+    data.dueDate.getTime() !== before.dueDate.getTime()
+  ) {
     const oldDate = before.dueDate.toISOString().slice(0, 10);
     const newDate = after.dueDate.toISOString().slice(0, 10);
     changes.push(`期限: ${oldDate} → ${newDate}`);
   }
   if (data.assignee && data.assignee !== before.assignee) {
-    changes.push(`担当者: ${before.assignee} → ${after.assignee}`);
+    changes.push(
+      `担当者: ${before.assignee} → ${after.assignee}`
+    );
   }
   if (data.tags && data.tags !== before.tags) {
     changes.push(`タグ: "${before.tags}" → "${after.tags}"`);
   }
 
   if (changes.length > 0) {
-    const base = process.env.PROJECT_BASE_URL || "";
-    const projectUrl = `${base}/${after.projectId}`;
+    // 🚀 リンクはルート URL のみ
+    const base = process.env.DEPLOY_URL || "";
+    const projectUrl = base;
 
     const text =
       `@${after.assignee}さん  
@@ -1741,9 +1686,14 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ): Promise<NextResponse> {
   const { id } = await params;
-  const task = await prisma.task.findUnique({ where: { id: Number(id) } });
+  const task = await prisma.task.findUnique({
+    where: { id: Number(id) },
+  });
   if (!task) {
-    return NextResponse.json({ error: "タスクが見つかりません" }, { status: 404 });
+    return NextResponse.json(
+      { error: "タスクが見つかりません" },
+      { status: 404 }
+    );
   }
   await prisma.task.delete({ where: { id: Number(id) } });
   return new NextResponse(null, { status: 204 });

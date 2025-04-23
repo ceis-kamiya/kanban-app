@@ -7,18 +7,18 @@ import { ProjectManagerForm } from "./ProjectManagerForm";
 
 type Props = {
   projects: Project[];
-  projectId: string;
-  setProjectId: (id: string) => void;
+  projectId: string | null;
+  setProjectId: (id: string | null) => void;
   onCreated: (task: Task) => void;
   onProjectUpdated: (project: Project) => void;
 };
 
-export function TaskForm({ 
-  projects, 
-  projectId, 
-  setProjectId, 
+export function TaskForm({
+  projects,
+  projectId,
+  setProjectId,
   onCreated,
-  onProjectUpdated 
+  onProjectUpdated,
 }: Props) {
   const [title, setTitle] = useState("");
   const [assignee, setAssignee] = useState("");
@@ -26,17 +26,19 @@ export function TaskForm({
   const [tags, setTags] = useState("");
   const [projectUpdated, setProjectUpdated] = useState(0);
 
-  const selectedProject = projects.find((p) => p.id === projectId);
+  const selectedProject = projects.find((p) => p.id === projectId) ?? null;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!projectId) {
+      alert("プロジェクトを選択してください");
+      return;
+    }
 
     try {
       const res = await fetch("/api/tasks", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title,
           assignee,
@@ -45,20 +47,14 @@ export function TaskForm({
           projectId,
         }),
       });
-
       if (!res.ok) {
         throw new Error(await res.text());
       }
-
-      const task = await res.json();
+      const task: Task = await res.json();
       onCreated(task);
-
-      // フォームをリセット
       setTitle("");
       setAssignee("");
       setTags("");
-      // 日付はそのまま
-
     } catch (err) {
       console.error(err);
       alert("タスクの作成に失敗しました");
@@ -71,10 +67,15 @@ export function TaskForm({
         <div>
           <label className="block text-sm mb-1">プロジェクト</label>
           <select
-            value={projectId}
-            onChange={(e) => setProjectId(e.target.value)}
+            value={projectId ?? ""}
+            onChange={(e) =>
+              setProjectId(e.target.value === "" ? null : e.target.value)
+            }
             className="border p-2 rounded"
           >
+            <option value="" disabled>
+              -- プロジェクトを選択 --
+            </option>
             {projects.map((project) => (
               <option key={project.id} value={project.id}>
                 {project.name}
@@ -88,7 +89,7 @@ export function TaskForm({
             key={`${selectedProject.id}-${projectUpdated}`}
             project={selectedProject}
             onUpdated={(project) => {
-              setProjectUpdated(n => n + 1);
+              setProjectUpdated((n) => n + 1);
               onProjectUpdated(project);
             }}
           />

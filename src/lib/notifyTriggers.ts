@@ -11,16 +11,15 @@ export async function notifyOnStatusChange(
   beforeStatus?: Status
 ) {
   const assignee = task.assignee;
-  // プロジェクト責任者を取得
   const project = await prisma.project.findUnique({
     where: { id: task.projectId },
     select: { projectManager: true },
   });
   const manager = project?.projectManager;
 
-  const projectUrl = `${process.env.PROJECT_BASE_URL}/${task.projectId}`;
+  // ここだけを返す
+  const projectUrl = process.env.DEPLOY_URL!;
 
-  // ① In Progress に入ったとき → 担当者へ
   if (task.status === "IN_PROGRESS" && beforeStatus !== "IN_PROGRESS") {
     await notifyTeams(
       task.projectId,
@@ -30,7 +29,6 @@ export async function notifyOnStatusChange(
     );
   }
 
-  // ② Review に移動したとき → 責任者へ
   if (task.status === "REVIEW" && beforeStatus !== "REVIEW" && manager) {
     await notifyTeams(
       task.projectId,
@@ -40,7 +38,6 @@ export async function notifyOnStatusChange(
     );
   }
 
-  // ③ Done に移動したとき → 担当者＋責任者へ（1通で）
   if (task.status === "DONE" && beforeStatus !== "DONE" && manager) {
     await notifyTeams(
       task.projectId,
