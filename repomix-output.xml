@@ -62,6 +62,7 @@ scripts/export.ts
 src/app/api/projects/[id]/route.ts
 src/app/api/projects/route.ts
 src/app/api/tasks/[id]/route.ts
+src/app/api/tasks/notify-deadlines/route.ts
 src/app/api/tasks/route.ts
 src/app/globals.css
 src/app/layout.tsx
@@ -70,6 +71,7 @@ src/components/KanbanBoard.tsx
 src/components/ProjectManagerForm.tsx
 src/components/TaskForm.tsx
 src/lib/notifyTeams.ts
+src/lib/notifyTriggers.ts
 src/lib/prisma.ts
 src/types.ts
 tsconfig.json
@@ -268,6 +270,112 @@ main()
   });
 </file>
 
+<file path="src/app/api/tasks/notify-deadlines/route.ts">
+// src/app/api/tasks/notify-deadlines/route.ts
+import { NextRequest, NextResponse } from "next/server";
+import prisma from "@/lib/prisma";
+import { notifyTeams } from "@/lib/notifyTeams";
+
+export const runtime = "nodejs";
+
+/**
+ * 締切 3 日前／当日通知用エンドポイント
+ * Cron で毎日実行します。
+ * ?today=YYYY-MM-DD で任意の日付をシミュレート可能。
+ */
+export async function GET(request: NextRequest) {
+  // ──────────────────────────────────────────────────────────
+  // 1. 今日と 3 日後の日付文字列（JSTの「日付のみ」）を作る
+  // ──────────────────────────────────────────────────────────
+  // override パラメータ取得（YYYY-MM-DD）
+  const override = request.nextUrl.searchParams.get("today");
+  // フォーマット関数
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const formatYMD = (d: Date) =>
+    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+  // override があればその日付を JST の午前0時に、
+  // なければ「いま」を JST で受け取る
+  let today: Date;
+  if (override) {
+    const [Y, M, D] = override.split("-").map((v) => parseInt(v, 10));
+    today = new Date(Y, M - 1, D); // ローカルタイムの 00:00 JST
+  } else {
+    const now = new Date();
+    today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  }
+
+  // 3日後を JST ローカルで計算
+  const in3 = new Date(today);
+  in3.setDate(in3.getDate() + 3);
+
+  const todayStr = formatYMD(today);
+  const in3Str   = formatYMD(in3);
+
+  // ──────────────────────────────────────────────────────────
+  // 2. Prisma で dueDate の「YYYY-MM-DD 部分」を比較
+  // ──────────────────────────────────────────────────────────
+  const base = process.env.PROJECT_BASE_URL || "";
+  const rawTasks = await prisma.$queryRaw<{
+    id: number;
+    title: string;
+    dueDate: Date;
+    assignee: string;
+    projectId: string;
+    projectManager: string | null;
+  }[]>`
+    SELECT
+      t.id,
+      t.title,
+      t."dueDate",
+      t.assignee,
+      t."projectId",
+      p."projectManager"
+    FROM "Task" t
+    JOIN "Project" p ON p.id = t."projectId"
+    WHERE to_char(t."dueDate", 'YYYY-MM-DD') IN (${todayStr}, ${in3Str})
+  `;
+
+  // ──────────────────────────────────────────────────────────
+  // 3. 通知を送る
+  // ──────────────────────────────────────────────────────────
+  for (const task of rawTasks) {
+    // dueDate を JST に合わせて文字列化
+    const d = new Date(task.dueDate);
+    const dateStr = formatYMD(
+      new Date(d.getFullYear(), d.getMonth(), d.getDate())
+    );
+
+    const assignee = task.assignee;
+    const manager  = task.projectManager;
+    const projectUrl = `${base}/${task.projectId}`;
+
+    if (dateStr === in3Str) {
+      // 締切３日前：担当者のみ
+      await notifyTeams(
+        null,
+        `@${assignee}さん\n` +
+        `タスク「${task.title}」の期限まであと3日です。\n\n` +
+        `🔗 ${projectUrl}`
+      );
+    } else if (dateStr === todayStr) {
+      // 当日：担当者＋責任者まとめて１通
+      const mentions = manager
+        ? `@${assignee}さん @${manager}さん`
+        : `@${assignee}さん`;
+      await notifyTeams(
+        null,
+        `${mentions}\n` +
+        `タスク「${task.title}」の期限は本日です。\n\n` +
+        `🔗 ${projectUrl}`
+      );
+    }
+  }
+
+  return NextResponse.json({ ok: true });
+}
+</file>
+
 <file path="src/app/globals.css">
 @import "tailwindcss";
 
@@ -414,6 +522,59 @@ export function ProjectManagerForm({ project, onUpdated }: Props) {
       </button>
     </form>
   );
+}
+</file>
+
+<file path="src/lib/notifyTriggers.ts">
+// src/lib/notifyTriggers.ts
+import prisma from "./prisma";
+import { notifyTeams } from "./notifyTeams";
+import { Status, Task } from "@prisma/client";
+
+export async function notifyOnStatusChange(
+  task: Task,
+  beforeStatus?: Status
+) {
+  const assignee = task.assignee;
+  const project = await prisma.project.findUnique({
+    where: { id: task.projectId },
+    select: { projectManager: true },
+  });
+  const manager = project?.projectManager;
+
+  // 環境変数からリンクのベースURLを取得
+  const projectBaseUrl = process.env.PROJECT_BASE_URL || "";
+  const projectUrl = `${projectBaseUrl}/${task.projectId}`;
+
+  // ① In Progress に入ったとき → 担当者へ
+  if (task.status === "IN_PROGRESS" && beforeStatus !== "IN_PROGRESS") {
+    await notifyTeams(
+      null,
+      `@${assignee}さん  
+タスク「${task.title}」が In Progress に入りました。  
+🔗 ${projectUrl}`
+    );
+  }
+
+  // ② Review に移動したとき → 責任者へ
+  if (task.status === "REVIEW" && beforeStatus !== "REVIEW" && manager) {
+    await notifyTeams(
+      null,
+      `@${manager}さん  
+タスク「${task.title}」が Review に入りました。  
+🔗 ${projectUrl}`
+    );
+  }
+
+  // ③ Done に移動したとき → 担当者＋責任者へ（1通で）
+  if (task.status === "DONE" && beforeStatus !== "DONE" && manager) {
+    await notifyTeams(
+      null,
+      `@${assignee}さん @${manager}さん  
+🎉 タスク「${task.title}」が完了しました！おつかれさまでした✨  
+🔗 ${projectUrl}`
+    );
+  }
 }
 </file>
 
@@ -617,71 +778,6 @@ export function TaskForm({
       </form>
     </div>
   );
-}
-</file>
-
-<file path="src/lib/notifyTeams.ts">
-/* ──────────────────────────────────────────────
-   src/lib/notifyTeams.ts
-   - Teams Webhook へ投稿するユーティリティ
-   - 使い方: notifyTeams(projectId, text)
-   - プロジェクトのWebhook URLまたはデフォルトの環境変数を使用
-────────────────────────────────────────────── */
-import prisma from "./prisma";
-
-/**
- * Teams にカード形式でメッセージを投稿
- * @param projectId プロジェクトID（nullの場合はデフォルトのwebhook URLを使用）
- * @param text 投稿するメッセージ
- */
-export async function notifyTeams(projectId: string | null, text: string): Promise<void> {
-  let webhookUrl: string | null = null;
-
-  if (projectId) {
-    // プロジェクトの環境変数キー名を取得
-    const project = await prisma.project.findUnique({
-      where: { id: projectId },
-      select: { webhookUrlKey: true }
-    });
-
-    // キーから環境変数の値を取得
-    if (project?.webhookUrlKey) {
-      webhookUrl = process.env[project.webhookUrlKey] || null;
-    }
-  }
-
-  // プロジェクトのWebhook URLがない場合はデフォルトを使用
-  webhookUrl = webhookUrl || process.env.TEAMS_WEBHOOK_URL || null;
-
-  if (!webhookUrl) {
-    throw new Error(
-      "▶︎ Webhook URLが設定されていません（プロジェクトまたは環境変数 TEAMS_WEBHOOK_URL）"
-    );
-  }
-
-  console.log("Teams通知を送信します:", {
-    projectId,
-    webhookUrlKey: projectId ? (await prisma.project.findUnique({
-      where: { id: projectId },
-      select: { webhookUrlKey: true }
-    }))?.webhookUrlKey : 'TEAMS_WEBHOOK_URL',
-    text
-  });
-
-  // Microsoft Teams の "Incoming Webhook" は JSON で { text } を投げるだけ
-  const res = await fetch(webhookUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ text }),
-  });
-
-  if (!res.ok) {
-    const body = await res.text();
-    console.error("Teams 通知エラー:", res.status, body);
-    throw new Error(`Teams 通知に失敗しました (${res.status})`);
-  }
-
-  console.log("Teams通知が成功しました");
 }
 </file>
 
@@ -1241,6 +1337,59 @@ function TaskCard({ task, setTasks }: { task: Task; setTasks: React.Dispatch<Rea
 }
 </file>
 
+<file path="src/lib/notifyTeams.ts">
+// src/lib/notifyTeams.ts
+import prisma from "./prisma";
+
+/**
+ * Microsoft Teams にカード形式でメッセージを投稿するユーティリティ
+ * @param projectId   プロジェクトID（null の場合はデフォルトの WEBHOOK_URL を使用）
+ * @param text        投稿するメッセージ本文
+ */
+export async function notifyTeams(
+  projectId: string | null,
+  text: string
+): Promise<void> {
+  let webhookUrl: string | null = null;
+
+  // プロジェクトごとに webhookUrlKey を使い分け
+  if (projectId) {
+    const project = await prisma.project.findUnique({
+      where: { id: projectId },
+      select: { webhookUrlKey: true },
+    });
+    if (project?.webhookUrlKey) {
+      webhookUrl = process.env[project.webhookUrlKey] || null;
+    }
+  }
+
+  // プロジェクトに設定がなければ環境変数 TEAMS_WEBHOOK_URL を使う
+  webhookUrl = webhookUrl || process.env.TEAMS_WEBHOOK_URL || null;
+
+  if (!webhookUrl) {
+    throw new Error(
+      "Webhook URL が設定されていません。（プロジェクト or 環境変数 TEAMS_WEBHOOK_URL）"
+    );
+  }
+
+  console.log("Teams 通知送信:", { projectId, text });
+
+  const res = await fetch(webhookUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text }),
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    console.error("Teams 通知エラー:", res.status, body);
+    throw new Error(`Teams通知に失敗しました (${res.status})`);
+  }
+
+  console.log("Teams 通知成功");
+}
+</file>
+
 <file path="package.json">
 {
   "name": "kanban-app",
@@ -1394,10 +1543,9 @@ export default function Home() {
 // src/app/api/tasks/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { notifyTeams } from "@/lib/notifyTeams";
+import { notifyOnStatusChange } from "@/lib/notifyTriggers";
 import { Status } from "@prisma/client";
 
-// リクエストボディの型定義
 interface TaskCreateBody {
   title?: unknown;
   dueDate?: unknown;
@@ -1417,7 +1565,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json(tasks);
   } catch (error: unknown) {
     console.error("GET /api/tasks エラー:", error);
-    return NextResponse.json({ error: "サーバーエラー" }, { status: 500 });
+    return NextResponse.json(
+      { error: "サーバーエラー" },
+      { status: 500 }
+    );
   }
 }
 
@@ -1425,6 +1576,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     const body = (await request.json()) as TaskCreateBody;
 
+    // 必須フィールドチェック
     if (
       typeof body.title !== "string" ||
       typeof body.dueDate !== "string" ||
@@ -1437,11 +1589,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    const title = body.title;
-    const dueDateStr = body.dueDate;
-    const assignee = body.assignee;
-    const projectId = body.projectId;
-    const tags = typeof body.tags === "string" ? body.tags : "";
+    // ステータス初期値
     let newStatus: Status = "IN_PROGRESS";
     if (
       typeof body.status === "string" &&
@@ -1450,8 +1598,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       newStatus = body.status as Status;
     }
 
+    // 重複チェック
     const dup = await prisma.task.findFirst({
-      where: { title, assignee, projectId },
+      where: {
+        title: body.title,
+        assignee: body.assignee,
+        projectId: body.projectId,
+      },
     });
     if (dup) {
       return NextResponse.json(
@@ -1460,138 +1613,28 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
+    // タスク作成
     const task = await prisma.task.create({
       data: {
-        title,
-        dueDate: new Date(dueDateStr),
-        assignee,
-        tags,
+        title: body.title,
+        dueDate: new Date(body.dueDate),
+        assignee: body.assignee,
+        tags: typeof body.tags === "string" ? body.tags : "",
         status: newStatus,
-        projectId,
+        projectId: body.projectId,
       },
     });
 
-    const project = await prisma.project.findUnique({ where: { id: projectId } });
-    if (project?.projectManager && newStatus === "IN_PROGRESS") {
-      const appUrl = process.env.DEPLOY_URL ?? "";
-      const projectUrl = `${process.env.PROJECT_BASE_URL}/${projectId}`;
-      const text =
-        `@${assignee}さん\n` +
-        `新しいタスク「${title}」が IN_PROGRESS に入りました。\n\n` +
-        `• 期限: ${new Date(dueDateStr).toLocaleDateString()}\n` +
-        (tags ? `• タグ: ${tags}\n` : "") +
-        `\n📱 ${appUrl}\n🔗 ${projectUrl}`;
-      await notifyTeams(projectId, text);
-    }
+    // ① 新規作成時も IN_PROGRESS 通知
+    await notifyOnStatusChange(task);
 
     return NextResponse.json(task, { status: 201 });
   } catch (error: unknown) {
     console.error("POST /api/tasks エラー:", error);
-    return NextResponse.json({ error: "サーバーエラー" }, { status: 500 });
-  }
-}
-</file>
-
-<file path="src/app/api/tasks/[id]/route.ts">
-import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
-import { Status } from "@prisma/client";
-
-interface TaskUpdateBody {
-  title?: string;
-  dueDate?: string;
-  assignee?: string;
-  tags?: string;
-  status?: string;
-}
-
-export async function PATCH(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-): Promise<NextResponse> {
-  const { id } = await params;
-
-  try {
-    const body = (await req.json()) as TaskUpdateBody;
-
-    const data: Partial<{
-      title: string;
-      dueDate: string;
-      assignee: string;
-      tags: string;
-      status: Status;
-    }> = {};
-
-    if (body.title) data.title = body.title;
-    if (body.dueDate) data.dueDate = body.dueDate;
-    if (body.assignee) data.assignee = body.assignee;
-    if (body.tags) data.tags = body.tags;
-
-    if (
-      body.status &&
-      Object.values(Status).includes(body.status as Status)
-    ) {
-      data.status = body.status as Status;
-    }
-
-    if (Object.keys(data).length === 0) {
-      return NextResponse.json(
-        { error: "更新項目がありません" },
-        { status: 400 }
-      );
-    }
-
-    const before = await prisma.task.findUnique({
-      where: { id: Number(id) },
-      include: { project: true },
-    });
-
-    if (!before) {
-      return NextResponse.json(
-        { error: "タスクが見つかりません" },
-        { status: 404 }
-      );
-    }
-
-    const after = await prisma.task.update({
-      where: { id: Number(id) },
-      data,
-    });
-
-    return NextResponse.json(after);
-  } catch (error: unknown) {
-    console.error("PATCH /api/tasks/[id] エラー:", error);
-    const message = error instanceof Error ? error.message : "サーバーエラー";
-    return NextResponse.json({ error: message }, { status: 500 });
-  }
-}
-
-export async function DELETE(
-  _req: NextRequest, // eslint-disable-line @typescript-eslint/no-unused-vars
-  { params }: { params: Promise<{ id: string }> }
-): Promise<NextResponse> {
-  const { id } = await params;
-
-  try {
-    const task = await prisma.task.findUnique({
-      where: { id: Number(id) },
-      include: { project: true },
-    });
-
-    if (!task) {
-      return NextResponse.json(
-        { error: "タスクが見つかりません" },
-        { status: 404 }
-      );
-    }
-
-    await prisma.task.delete({ where: { id: Number(id) } });
-
-    return new NextResponse(null, { status: 204 });
-  } catch (error: unknown) {
-    console.error("DELETE /api/tasks/[id] エラー:", error);
-    const message = error instanceof Error ? error.message : "サーバーエラー";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json(
+      { error: "サーバーエラー" },
+      { status: 500 }
+    );
   }
 }
 </file>
@@ -1611,6 +1654,117 @@ export async function GET(): Promise<NextResponse> {
     console.error("GET /api/projects エラー:", error);
     return NextResponse.json([], { status: 500 });
   }
+}
+</file>
+
+<file path="src/app/api/tasks/[id]/route.ts">
+// src/app/api/tasks/[id]/route.ts
+import { NextRequest, NextResponse } from "next/server";
+import prisma from "@/lib/prisma";
+import { notifyOnStatusChange } from "@/lib/notifyTriggers";
+import { notifyTeams }          from "@/lib/notifyTeams";
+import { Status } from "@prisma/client";
+
+interface TaskUpdateBody {
+  title?: string;
+  dueDate?: string;
+  assignee?: string;
+  tags?: string;
+  status?: string;
+}
+
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+): Promise<NextResponse> {
+  const { id } = await params;
+
+  // 更新前データ取得
+  const before = await prisma.task.findUnique({
+    where: { id: Number(id) },
+    include: { project: true },
+  });
+  if (!before) {
+    return NextResponse.json(
+      { error: "タスクが見つかりません" },
+      { status: 404 }
+    );
+  }
+
+  // リクエストボディ
+  const body = (await req.json()) as TaskUpdateBody;
+  const data: Partial<{
+    title: string;
+    dueDate: Date;
+    assignee: string;
+    tags: string;
+    status: Status;
+  }> = {};
+
+  if (body.title) data.title = body.title;
+  if (body.dueDate) data.dueDate = new Date(body.dueDate);
+  if (body.assignee) data.assignee = body.assignee;
+  if (body.tags) data.tags = body.tags;
+  if (
+    body.status &&
+    Object.values(Status).includes(body.status as Status)
+  ) {
+    data.status = body.status as Status;
+  }
+
+  if (Object.keys(data).length === 0) {
+    return NextResponse.json(
+      { error: "更新項目がありません" },
+      { status: 400 }
+    );
+  }
+
+  // タスク更新
+  const after = await prisma.task.update({
+    where: { id: Number(id) },
+    data,
+  });
+
+  // ①～③: ステータス変更通知
+  await notifyOnStatusChange(after, before.status);
+
+  // ⑥: その他フィールド変更時の通知（担当者へ）
+  if (
+    (data.title && data.title !== before.title) ||
+    (data.dueDate &&
+      data.dueDate.getTime() !== before.dueDate.getTime()) ||
+    (data.tags && data.tags !== before.tags) ||
+    (data.assignee && data.assignee !== before.assignee)
+  ) {
+    await notifyTeams(
+      null,
+      `@${after.assignee}さん タスク『${after.title}』の情報が更新されました。`
+    );
+  }
+
+  return NextResponse.json(after);
+}
+
+export async function DELETE(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+): Promise<NextResponse> {
+  const { id } = await params;
+
+  // 存在チェック
+  const task = await prisma.task.findUnique({
+    where: { id: Number(id) },
+  });
+  if (!task) {
+    return NextResponse.json(
+      { error: "タスクが見つかりません" },
+      { status: 404 }
+    );
+  }
+
+  // 削除
+  await prisma.task.delete({ where: { id: Number(id) } });
+  return new NextResponse(null, { status: 204 });
 }
 </file>
 

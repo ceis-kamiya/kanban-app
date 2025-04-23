@@ -1,56 +1,82 @@
 // src/app/api/tasks/notify-deadlines/route.ts
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { notifyTeams } from "@/lib/notifyTeams";
 
 export const runtime = "nodejs";
 
 /**
- * 締切3日前と当日通知用エンドポイント
- * 毎日 Cron で実行してください
+ * 締切 3 日前／当日通知用エンドポイント
+ * Cron で毎日実行します。
+ * ?today=YYYY-MM-DD で任意の日付をシミュレート可能。
  */
-export async function GET() {
-  const today = new Date();
-  const in3Days = new Date();
-  in3Days.setDate(today.getDate() + 3);
+export async function GET(request: NextRequest) {
+  const override = request.nextUrl.searchParams.get("today");
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const formatYMD = (d: Date) =>
+    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
-  // 日付部分だけ比較できるように ISO 文字列の先頭10文字を利用
-  const todayStr = today.toISOString().slice(0, 10);
-  const in3Str = in3Days.toISOString().slice(0, 10);
+  let today: Date;
+  if (override) {
+    const [Y, M, D] = override.split("-").map((v) => parseInt(v, 10));
+    today = new Date(Y, M - 1, D);
+  } else {
+    const now = new Date();
+    today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  }
 
-  // 期限が今日か3日後のタスクを取得
-  const tasks = await prisma.task.findMany({
-    where: {
-      dueDate: {
-        in: [new Date(todayStr), new Date(in3Str)],
-      },
-    },
-    include: { project: true },
-  });
+  const in3 = new Date(today);
+  in3.setDate(in3.getDate() + 3);
 
-  for (const task of tasks) {
-    const dueStr = task.dueDate.toISOString().slice(0, 10);
+  const todayStr = formatYMD(today);
+  const in3Str = formatYMD(in3);
+
+  const base = process.env.PROJECT_BASE_URL || "";
+
+  const rawTasks = await prisma.$queryRaw<{
+    id: number;
+    title: string;
+    dueDate: Date;
+    assignee: string;
+    projectId: string;
+    projectManager: string | null;
+  }[]>`
+    SELECT
+      t.id,
+      t.title,
+      t."dueDate",
+      t.assignee,
+      t."projectId",
+      p."projectManager"
+    FROM "Task" t
+    JOIN "Project" p ON p.id = t."projectId"
+    WHERE t."dueDate"::date IN (${todayStr}::date, ${in3Str}::date)
+  `;
+
+  for (const task of rawTasks) {
+    const d = new Date(task.dueDate);
+    const dateStr = formatYMD(new Date(d.getFullYear(), d.getMonth(), d.getDate()));
     const assignee = task.assignee;
-    const manager = task.project.projectManager;
+    const manager = task.projectManager;
+    const projectUrl = `${base}/${task.projectId}`;
 
-    if (dueStr === in3Str) {
-      // ④ 締切3日前
+    if (dateStr === in3Str) {
       await notifyTeams(
-        null,
-        `@${assignee}さん タスク『${task.title}』の期限まであと3日です。`
+        task.projectId,
+        `@${assignee}さん  
+タスク「${task.title}」の期限まであと3日です。  
+🔗 ${projectUrl}`
       );
-    } else if (dueStr === todayStr) {
-      // ⑤ 締切当日
+    } else if (dateStr === todayStr) {
+      const mentions = manager
+        ? `@${assignee}さん @${manager}さん`
+        : `@${assignee}さん`;
       await notifyTeams(
-        null,
-        `@${assignee}さん タスク『${task.title}』の期限は本日です。`
+        task.projectId,
+        `${mentions}  
+タスク「${task.title}」の期限は本日です。  
+🔗 ${projectUrl}`
       );
-      if (manager) {
-        await notifyTeams(
-          null,
-          `@${manager}さん タスク『${task.title}』の期限は本日です。`
-        );
-      }
     }
   }
 
