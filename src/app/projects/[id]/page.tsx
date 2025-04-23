@@ -1,61 +1,52 @@
 // src/app/projects/[id]/page.tsx
-"use client";
+import { prisma } from "@/lib/prisma";
+import ProjectPageClient from "@/components/ProjectPageClient";
+import type { Project, Task } from "@/types";
 
-import React, { useState, useEffect } from "react";
-import { Task, Project } from "@/types";
-import { TaskForm } from "@/components/TaskForm";
-import { KanbanBoard } from "@/components/KanbanBoard";
-
-// ↓ ここを Promise ではなく同期の型に変更
-export default function ProjectPage({
-  params,
-}: {
+interface Params {
   params: { id: string };
-}) {
+}
+
+export default async function ProjectPage({ params }: Params) {
   const projectId = params.id;
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [tasks, setTasks] = useState<Task[]>([]);
 
-  useEffect(() => {
-    fetch("/api/projects")
-      .then((r) => r.json())
-      .then((p: Project[]) => setProjects(p));
-  }, []);
+  // プロジェクトをサーバーサイドで取得
+  const projectRecord = await prisma.project.findUnique({
+    where: { id: projectId },
+  });
+  if (!projectRecord) {
+    return <div className="p-4">プロジェクトが見つかりません（ID: {projectId}）</div>;
+  }
 
-  useEffect(() => {
-    fetch(`/api/tasks?projectId=${projectId}`)
-      .then((r) => r.json())
-      .then((ts: Task[]) => setTasks(ts))
-      .catch(console.error);
-  }, [projectId]);
+  // タスクをサーバーサイドで取得
+  const taskRecords = await prisma.task.findMany({
+    where: { projectId },
+    orderBy: { dueDate: "asc" },
+  });
 
-  const handleCreated = (t: Task) => {
-    if (t.projectId === projectId) {
-      setTasks((prev) => [...prev, t]);
-    }
-  };
-
-  const handleProjectUpdated = (updated: Project) => {
-    setProjects((prev) =>
-      prev.map((p) => (p.id === updated.id ? updated : p))
-    );
-  };
+  // クライアントコンポーネントに渡すデータ整形
+  const projects: Project[] = [
+    {
+      id: projectRecord.id,
+      name: projectRecord.name,
+      projectManager: projectRecord.projectManager,
+    },
+  ];
+  const initialTasks: Task[] = taskRecords.map((t) => ({
+    id: t.id,
+    projectId: t.projectId,
+    title: t.title,
+    dueDate: t.dueDate.toISOString(),
+    assignee: t.assignee,
+    tags: t.tags,
+    status: t.status,
+  }));
 
   return (
-    <main className="p-4">
-      <h1 className="text-2xl font-bold mb-4">
-        {projects.find((p) => p.id === projectId)?.name || "プロジェクト"}
-      </h1>
-
-      <TaskForm
-        projects={projects}
-        projectId={projectId}
-        setProjectId={() => {}}
-        onCreated={handleCreated}
-        onProjectUpdated={handleProjectUpdated}
-      />
-
-      <KanbanBoard tasks={tasks} setTasks={setTasks} />
-    </main>
+    <ProjectPageClient
+      projects={projects}
+      initialTasks={initialTasks}
+      projectId={projectId}
+    />
   );
 }
