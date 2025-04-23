@@ -1,0 +1,9 @@
+{
+    "crons": [
+      {
+        "path": "/api/tasks/notify-deadlines",
+        "schedule": "0 23 * * *"
+      }
+    ]
+  }
+  
