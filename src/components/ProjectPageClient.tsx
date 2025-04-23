@@ -25,10 +25,7 @@ export default function ProjectPageClient({
     }
   };
 
-  const handleProjectUpdated = (updated: Project) => {
-    // プロジェクト更新後の処理（必要に応じて）
-  };
-
+  // プロジェクト情報は props.projects の中から探すだけ
   const project = projects.find((p) => p.id === projectId);
 
   return (
@@ -40,7 +37,7 @@ export default function ProjectPageClient({
         projectId={projectId}
         setProjectId={() => {}}
         onCreated={handleCreated}
-        onProjectUpdated={handleProjectUpdated}
+        onProjectUpdated={() => {}}
       />
 
       <KanbanBoard tasks={tasks} setTasks={setTasks} />
