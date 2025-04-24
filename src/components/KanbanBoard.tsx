@@ -208,7 +208,7 @@ function TaskCard({ task, setTasks }: TaskCardProps) {
           type="text"
           value={tags}
           onChange={(e) => setTags(e.target.value)}
-          placeholder="タグ（カンマ区切り）"
+          placeholder="コメント"
           className="border p-2 rounded w-full"
         />
         <div className="flex gap-2 mt-2">
@@ -253,7 +253,7 @@ function TaskCard({ task, setTasks }: TaskCardProps) {
         担当: {task.assignee}
       </div>
       {task.tags && (
-        <div className="text-xs text-gray-600 mb-2">タグ: {task.tags}</div>
+        <div className="text-xs text-gray-600 mb-2">コメント: {task.tags}</div>
       )}
 
       <div className="flex gap-2 absolute bottom-2 right-2">

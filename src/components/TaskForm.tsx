@@ -124,7 +124,7 @@ export function TaskForm({
           type="text"
           value={tags}
           onChange={(e) => setTags(e.target.value)}
-          placeholder="タグ（カンマ区切り）"
+          placeholder="コメント"
           className="border p-2 rounded"
         />
         <button
