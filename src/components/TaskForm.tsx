@@ -2,14 +2,20 @@
 "use client";
 
 import React, { useState } from "react";
-import { Project, Task } from "@/types";
+import { Project, Task, Status } from "@/types";
 import { ProjectManagerForm } from "./ProjectManagerForm";
 
 type Props = {
   projects: Project[];
   projectId: string | null;
   setProjectId: (id: string | null) => void;
-  onCreated: (task: Task) => void;
+
+  /* ===== 楽観的 UI 用 ===== */
+  onAdd: (task: Task) => void;                    // 楽観追加
+  onCommit: (tempId: number, saved: Task) => void; // 正式反映
+  onRollback: (tempId: number) => void;            // 失敗ロールバック
+
+  /* 既存 */
   onProjectUpdated: (project: Project) => void;
 };
 
@@ -17,17 +23,20 @@ export function TaskForm({
   projects,
   projectId,
   setProjectId,
-  onCreated,
+  onAdd,
+  onCommit,
+  onRollback,
   onProjectUpdated,
 }: Props) {
   const [title, setTitle] = useState("");
   const [assignee, setAssignee] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [tags, setTags] = useState("");
-  const [projectUpdated, setProjectUpdated] = useState(0);
+  const [isSaving, setSaving] = useState(false);
 
   const selectedProject = projects.find((p) => p.id === projectId) ?? null;
 
+  /* ───────── 送信 ───────── */
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!projectId) {
@@ -35,6 +44,21 @@ export function TaskForm({
       return;
     }
 
+    const tempId = -Date.now(); // 負数 ID＝一意なテンポラリ
+    const optimisticTask: Task = {
+      id: tempId,
+      projectId,
+      title,
+      assignee,
+      dueDate: new Date(dueDate).toISOString(),
+      tags,
+      status: "IN_PROGRESS" satisfies Status,
+    };
+
+    /* ① 先に UI へ反映 */
+    onAdd(optimisticTask);
+
+    setSaving(true);
     try {
       const res = await fetch("/api/tasks", {
         method: "POST",
@@ -47,22 +71,29 @@ export function TaskForm({
           projectId,
         }),
       });
-      if (!res.ok) {
-        throw new Error(await res.text());
-      }
-      const task: Task = await res.json();
-      onCreated(task);
+      if (!res.ok) throw new Error(await res.text());
+
+      /* ② サーバー確定 → tempId 置換 */
+      const saved: Task = await res.json();
+      onCommit(tempId, saved);
+
+      /* 完了 → フォームリセット */
       setTitle("");
       setAssignee("");
       setTags("");
     } catch (err) {
       console.error(err);
+      /* ③ 失敗 → ロールバック */
+      onRollback(tempId);
       alert("タスクの作成に失敗しました");
+    } finally {
+      setSaving(false);
     }
   }
 
   return (
     <div className="mb-6">
+      {/* ───────── プロジェクト選択 & 責任者フォーム ───────── */}
       <div className="flex gap-4 items-end mb-4">
         <div>
           <label className="block text-sm mb-1">プロジェクト</label>
@@ -76,9 +107,9 @@ export function TaskForm({
             <option value="" disabled>
               -- プロジェクトを選択 --
             </option>
-            {projects.map((project) => (
-              <option key={project.id} value={project.id}>
-                {project.name}
+            {projects.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
               </option>
             ))}
           </select>
@@ -86,19 +117,15 @@ export function TaskForm({
 
         {selectedProject && (
           <ProjectManagerForm
-            key={`${selectedProject.id}-${projectUpdated}`}
             project={selectedProject}
-            onUpdated={(project) => {
-              setProjectUpdated((n) => n + 1);
-              onProjectUpdated(project);
-            }}
+            onUpdated={onProjectUpdated}
           />
         )}
       </div>
 
+      {/* ───────── タスク入力フォーム ───────── */}
       <form onSubmit={handleSubmit} className="flex flex-wrap gap-2">
         <input
-          type="text"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder="タスク名"
@@ -106,7 +133,6 @@ export function TaskForm({
           className="border p-2 rounded"
         />
         <input
-          type="text"
           value={assignee}
           onChange={(e) => setAssignee(e.target.value)}
           placeholder="担当者"
@@ -121,7 +147,6 @@ export function TaskForm({
           className="border p-2 rounded"
         />
         <input
-          type="text"
           value={tags}
           onChange={(e) => setTags(e.target.value)}
           placeholder="コメント"
@@ -129,9 +154,10 @@ export function TaskForm({
         />
         <button
           type="submit"
-          className="bg-blue-600 text-white px-3 py-2 rounded"
+          disabled={isSaving}
+          className="bg-blue-600 text-white px-3 py-2 rounded disabled:opacity-50"
         >
-          作成
+          {isSaving ? "保存中..." : "作成"}
         </button>
       </form>
     </div>

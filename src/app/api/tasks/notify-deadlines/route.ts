@@ -7,12 +7,18 @@ export const runtime = "nodejs";
 
 /**
  * 締切 3 日前／当日通知用エンドポイント
+ * ─────────────────────────────────
+ * ・Cron（Vercel の crons 機能など）から毎日 1 回 GET される想定
+ * ・IN_PROGRESS のタスクだけを対象に通知するように変更
  */
 export async function GET(request: NextRequest) {
+  /* ───────── 日付ユーティリティ ───────── */
   const pad = (n: number) => String(n).padStart(2, "0");
   const formatYMD = (d: Date) =>
     `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
+  /* ───────── "今日" を決定 ─────────
+     ?today=yyyy-mm-dd を付けると任意日でテスト可 */
   const now = request.nextUrl.searchParams.get("today")
     ? (() => {
         const [Y, M, D] = request.nextUrl
@@ -30,9 +36,11 @@ export async function GET(request: NextRequest) {
   const todayStr = formatYMD(today);
   const in3Str = formatYMD(in3);
 
-  // ここもルートのみ
-  const base = process.env.DEPLOY_URL!;
+  /* ───────── 当日のホスト名（リンク用） ───────── */
+  const base = process.env.DEPLOY_URL!; // 例: https://example.vercel.app
 
+  /* ───────── 対象タスク取得 ─────────
+     追加条件:  status = 'IN_PROGRESS' のみ抽出 */
   const rawTasks = await prisma.$queryRaw<{
     id: number;
     title: string;
@@ -41,26 +49,31 @@ export async function GET(request: NextRequest) {
     projectId: string;
     projectManager: string | null;
   }[]>`
-    SELECT t.id, t.title, t."dueDate", t.assignee, t."projectId", p."projectManager"
-    FROM "Task" t
-    JOIN "Project" p ON p.id = t."projectId"
-    WHERE t."dueDate"::date IN (${todayStr}::date, ${in3Str}::date)
+    SELECT t.id,
+           t.title,
+           t."dueDate",
+           t.assignee,
+           t."projectId",
+           p."projectManager"
+      FROM "Task" t
+      JOIN "Project" p ON p.id = t."projectId"
+     WHERE t."dueDate"::date IN (${todayStr}::date, ${in3Str}::date)
+       AND t.status = 'IN_PROGRESS'
   `;
 
+  /* ───────── 通知送信 ───────── */
   for (const task of rawTasks) {
-    const d = new Date(task.dueDate);
-    const dateStr = formatYMD(d);
+    const dueStr = formatYMD(task.dueDate);
+    const projectUrl = base; // 現状はルートのみ
 
-    const projectUrl = base; // ← プロジェクト ID は消えています
-
-    if (dateStr === in3Str) {
+    if (dueStr === in3Str) {
       await notifyTeams(
         task.projectId,
         `@${task.assignee}さん  
 タスク「${task.title}」の期限まであと3日です。  
 🔗 ${projectUrl}`
       );
-    } else if (dateStr === todayStr) {
+    } else if (dueStr === todayStr) {
       const mentions = task.projectManager
         ? `@${task.assignee}さん @${task.projectManager}さん`
         : `@${task.assignee}さん`;

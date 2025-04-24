@@ -1,8 +1,9 @@
 // src/app/page.tsx
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { Task, Project } from "@/types";
+import React, { useEffect, useState } from "react";
+import { Project, Task } from "@/types";
 import { TaskForm } from "@/components/TaskForm";
 import { KanbanBoard } from "@/components/KanbanBoard";
 
@@ -11,53 +12,61 @@ export default function Home() {
   const [projectId, setProjectId] = useState<string | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
 
-  // ── プロジェクト一覧を取得（自動選択なし） ──
+  /* ───────── プロジェクト一覧 ───────── */
   useEffect(() => {
     fetch("/api/projects")
-      .then((res) => res.json())
-      .then((data: Project[]) => {
-        setProjects(data);
-      })
+      .then((r) => r.json())
+      .then(setProjects)
       .catch(console.error);
   }, []);
 
-  // ── projectId が変わったらタスク取得、nullならクリア ──
+  /* ───────── 選択プロジェクトのタスク ───────── */
   useEffect(() => {
     if (!projectId) {
       setTasks([]);
       return;
     }
     fetch(`/api/tasks?projectId=${projectId}`)
-      .then((res) => res.json())
-      .then((data: Task[]) => {
-        setTasks(data);
-      })
+      .then((r) => r.json())
+      .then(setTasks)
       .catch(console.error);
   }, [projectId]);
 
-  // 新規作成時の処理
-  const handleCreated = (t: Task) => {
-    if (t.projectId === projectId) {
-      setTasks((prev) => [...prev, t]);
-    }
-  };
+  /* ===== 楽観的 UI 用ユーティリティ ===== */
+  /** ① 追加（tempId は負数で発行） */
+  const addTaskOptimistic = (task: Task) =>
+    setTasks((prev) => [...prev, task]);
 
-  // プロジェクト更新時の処理
-  const handleProjectUpdated = (updated: Project) => {
+  /** ② commit → tempId を正式 ID で置換 */
+  const commitTask = (tempId: number, saved: Task) =>
+    setTasks((prev) =>
+      prev.map((t) => (t.id === tempId ? saved : t))
+    );
+
+  /** ③ rollback → tempId を除去 */
+  const rollbackTask = (tempId: number) =>
+    setTasks((prev) => prev.filter((t) => t.id !== tempId));
+
+  /** プロジェクト責任者の楽観更新は “とりあえず” 即時反映で十分 */
+  const handleProjectUpdated = (updated: Project) =>
     setProjects((prev) =>
       prev.map((p) => (p.id === updated.id ? updated : p))
     );
-  };
 
   return (
     <main className="p-4">
       <h1 className="text-2xl font-bold mb-4">Kanban Board</h1>
 
       <TaskForm
+        /* ─ props ─ */
         projects={projects}
         projectId={projectId}
         setProjectId={setProjectId}
-        onCreated={handleCreated}
+        /* 楽観 UI コールバック */
+        onAdd={addTaskOptimistic}
+        onCommit={commitTask}
+        onRollback={rollbackTask}
+        /* 既存 */
         onProjectUpdated={handleProjectUpdated}
       />
 

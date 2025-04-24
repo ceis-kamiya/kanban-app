@@ -23,6 +23,7 @@ type KanbanBoardProps = {
 export function KanbanBoard({ tasks, setTasks }: KanbanBoardProps) {
   const sensors = useSensors(useSensor(MouseSensor), useSensor(TouchSensor));
 
+  /* ドラッグ終了時 ─ 楽観的ステータス更新 */
   const handleDragEnd = async ({ active, over }: DragEndEvent) => {
     if (!over) return;
     const id = String(active.id).replace("task-", "");
@@ -30,7 +31,6 @@ export function KanbanBoard({ tasks, setTasks }: KanbanBoardProps) {
     const prev = tasks.find((t) => t.id === Number(id));
     if (!prev || prev.status === newStatus) return;
 
-    // 楽観更新
     setTasks((ts) =>
       ts.map((t) => (t.id === prev.id ? { ...t, status: newStatus } : t))
     );
@@ -44,10 +44,7 @@ export function KanbanBoard({ tasks, setTasks }: KanbanBoardProps) {
       if (!res.ok) throw new Error();
     } catch {
       alert("更新に失敗しました");
-      // 巻き戻し
-      setTasks((ts) =>
-        ts.map((t) => (t.id === prev.id ? prev : t))
-      );
+      setTasks((ts) => ts.map((t) => (t.id === prev.id ? prev : t)));
     }
   };
 
@@ -79,6 +76,7 @@ export function KanbanBoard({ tasks, setTasks }: KanbanBoardProps) {
   );
 }
 
+/* ───────────────── Column ───────────────── */
 type ColumnProps = {
   column: { key: Status; title: string };
   tasks: Task[];
@@ -91,7 +89,7 @@ function Column({ column, tasks, setTasks }: ColumnProps) {
   return (
     <div
       ref={setNodeRef}
-      className={`w-64 p-2 rounded min-h-[400px] border ${
+      className={`w-64 p-2 rounded min-h-[400px] border overflow-visible ${
         isOver
           ? "border-blue-500 bg-gray-100/80"
           : "border-gray-300 bg-gray-50/80"
@@ -109,6 +107,7 @@ function Column({ column, tasks, setTasks }: ColumnProps) {
   );
 }
 
+/* ───────────────── TaskCard ───────────────── */
 type TaskCardProps = {
   task: Task;
   setTasks: React.Dispatch<React.SetStateAction<Task[]>>;
@@ -120,8 +119,8 @@ function TaskCard({ task, setTasks }: TaskCardProps) {
   const [assignee, setAssignee] = useState(task.assignee);
   const [dueDate, setDueDate] = useState(task.dueDate.split("T")[0]);
   const [tags, setTags] = useState(task.tags);
+  const [isSaving, setSaving] = useState(false);
 
-  // ドラッグハンドル
   const { attributes, listeners, setNodeRef, transform, isDragging } =
     useDraggable({ id: `task-${task.id}` });
 
@@ -134,9 +133,19 @@ function TaskCard({ task, setTasks }: TaskCardProps) {
 
   const stop = (e: React.PointerEvent) => e.stopPropagation();
 
-  // 保存
+  /* 保存（楽観的） */
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
+    const optimistic: Task = {
+      ...task,
+      title,
+      assignee,
+      dueDate: new Date(dueDate).toISOString(),
+      tags,
+    };
+    setTasks((ts) => ts.map((t) => (t.id === task.id ? optimistic : t)));
+    setSaving(true);
+
     try {
       const res = await fetch(`/api/tasks/${task.id}`, {
         method: "PATCH",
@@ -146,35 +155,37 @@ function TaskCard({ task, setTasks }: TaskCardProps) {
           assignee,
           dueDate: new Date(dueDate).toISOString(),
           tags,
-          status: task.status,
-          projectId: task.projectId,
         }),
       });
-      if (!res.ok) throw new Error();
-      const updated = await res.json();
-      setTasks((ts) =>
-        ts.map((t) => (t.id === updated.id ? updated : t))
-      );
+      if (!res.ok) throw new Error(await res.text());
+      const saved: Task = await res.json();
+      setTasks((ts) => ts.map((t) => (t.id === task.id ? saved : t)));
       setEditing(false);
-    } catch {
+    } catch (err) {
+      console.error(err);
+      setTasks((ts) => ts.map((t) => (t.id === task.id ? task : t)));
       alert("更新失敗");
+    } finally {
+      setSaving(false);
     }
   };
 
-  // 削除
+  /* 削除（楽観的） */
   const remove = async () => {
     if (!confirm("このタスクを削除しますか？")) return;
+    setTasks((ts) => ts.filter((t) => t.id !== task.id));
+
     try {
-      const res = await fetch(`/api/tasks/${task.id}`, {
-        method: "DELETE",
-      });
-      if (!res.ok) throw new Error();
-      setTasks((ts) => ts.filter((t) => t.id !== task.id));
-    } catch {
+      const res = await fetch(`/api/tasks/${task.id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error(await res.text());
+    } catch (err) {
+      console.error(err);
+      setTasks((ts) => ts.concat(task));
       alert("削除失敗");
     }
   };
 
+  /* ───────── JSX ───────── */
   if (isEditing) {
     return (
       <form
@@ -182,7 +193,6 @@ function TaskCard({ task, setTasks }: TaskCardProps) {
         className="bg-white p-4 rounded shadow flex flex-col gap-2"
       >
         <input
-          type="text"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder="タイトル"
@@ -190,7 +200,6 @@ function TaskCard({ task, setTasks }: TaskCardProps) {
           className="border p-2 rounded w-full"
         />
         <input
-          type="text"
           value={assignee}
           onChange={(e) => setAssignee(e.target.value)}
           placeholder="担当者"
@@ -205,7 +214,6 @@ function TaskCard({ task, setTasks }: TaskCardProps) {
           className="border p-2 rounded w-full"
         />
         <input
-          type="text"
           value={tags}
           onChange={(e) => setTags(e.target.value)}
           placeholder="コメント"
@@ -214,9 +222,10 @@ function TaskCard({ task, setTasks }: TaskCardProps) {
         <div className="flex gap-2 mt-2">
           <button
             type="submit"
-            className="flex-1 bg-blue-600 text-white py-2 rounded hover:bg-blue-700"
+            disabled={isSaving}
+            className="flex-1 bg-blue-600 text-white py-2 rounded hover:bg-blue-700 disabled:opacity-50"
           >
-            保存
+            {isSaving ? "保存中..." : "保存"}
           </button>
           <button
             type="button"
@@ -232,11 +241,7 @@ function TaskCard({ task, setTasks }: TaskCardProps) {
   }
 
   return (
-    <div
-      style={style}
-      className="bg-white p-4 rounded shadow select-none relative"
-    >
-      {/* ドラッグハンドル */}
+    <div style={style} className="bg-white p-4 rounded shadow select-none">
       <div
         ref={setNodeRef}
         {...attributes}
@@ -249,14 +254,14 @@ function TaskCard({ task, setTasks }: TaskCardProps) {
       <div className="text-xs text-gray-600 mb-2">
         期限: {new Date(task.dueDate).toLocaleDateString()}
       </div>
-      <div className="text-xs text-gray-600 mb-2">
-        担当: {task.assignee}
-      </div>
+      <div className="text-xs text-gray-600 mb-2">担当: {task.assignee}</div>
       {task.tags && (
-        <div className="text-xs text-gray-600 mb-2">コメント: {task.tags}</div>
+        <div className="text-xs text-gray-600 mb-2 break-words">
+          コメント: {task.tags}
+        </div>
       )}
 
-      <div className="flex gap-2 absolute bottom-2 right-2">
+      <div className="flex gap-2 mt-2">
         <button
           onPointerDown={stop}
           onClick={() => setEditing(true)}
