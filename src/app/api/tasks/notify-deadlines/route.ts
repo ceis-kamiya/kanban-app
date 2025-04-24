@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
       FROM "Task" t
       JOIN "Project" p ON p.id = t."projectId"
      WHERE t."dueDate"::date IN (${todayStr}::date, ${in3Str}::date)
-       AND t.status = 'IN_PROGRESS'
+       AND t."status" IN ('IN_PROGRESS', 'ON_HOLD', 'REVIEW')
   `;
 
   /* ───────── 通知送信 ───────── */
