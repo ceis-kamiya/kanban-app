@@ -25,3 +25,6 @@ npm run dev
 
 ## prisma studio起動
 npx prisma studio
+
+## コードを1ファイルにまとめる
+npx repomix

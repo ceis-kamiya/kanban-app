@@ -36,6 +36,10 @@ export async function GET(request: NextRequest) {
   const todayStr = formatYMD(today);
   const in3Str = formatYMD(in3);
 
+
+  // ↓ デバッグログ１: todayStr と in3Str が正しく計算されているか確認
+  console.log("■ todayStr, in3Str:", todayStr, in3Str);
+
   /* ───────── 当日のホスト名（リンク用） ───────── */
   const base = process.env.DEPLOY_URL!; // 例: https://example.vercel.app
 
@@ -60,6 +64,9 @@ export async function GET(request: NextRequest) {
      WHERE t."dueDate"::date IN (${todayStr}::date, ${in3Str}::date)
        AND t."status" IN ('IN_PROGRESS', 'ON_HOLD', 'REVIEW')
   `;
+
+ // ↓ デバッグログ２: rawTasks の中身と件数を確認
+ console.log("■ rawTasks length:", rawTasks.length, rawTasks);
 
   /* ───────── 通知送信 ───────── */
   for (const task of rawTasks) {
