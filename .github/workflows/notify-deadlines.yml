@@ -4,7 +4,7 @@ name: "Notify Deadlines"
 # 毎日 23:00 (UTC) に実行、かつ手動トリガーも可
 on:
   schedule:
-    - cron: "06 4 * * *"   # 毎日 04:00 UTC → JST 12:40
+    - cron: "0 23 * * *"     # 毎日 23:00 UTC → 翌日 8:00 JST
   workflow_dispatch:
 
 jobs:
