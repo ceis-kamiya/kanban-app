@@ -26,6 +26,9 @@ export async function notifyTeams(
   // プロジェクトに設定がなければ環境変数 TEAMS_WEBHOOK_URL を使う
   webhookUrl = webhookUrl || process.env.TEAMS_WEBHOOK_URL || null;
 
+  // ← ここでログを出す
+  console.log("▶ 使用中の webhookUrl =", webhookUrl);
+
   if (!webhookUrl) {
     throw new Error(
       "Webhook URL が設定されていません。（プロジェクト or 環境変数 TEAMS_WEBHOOK_URL）"
