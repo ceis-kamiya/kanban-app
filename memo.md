@@ -28,3 +28,35 @@ npx prisma studio
 
 ## コードを1ファイルにまとめる
 npx repomix
+
+## DBをダンプ
+$env:PGPASSWORD='13Ceis31!!'
+$env:PGSSLMODE='require' # SSLモードを環境変数で設定
+
+pg_dump `
+  -h aws-0-ap-northeast-1.pooler.supabase.com `
+  -p 6543 `
+  -U postgres.eovedojqpaxcsnerrawn `
+  -d postgres `
+  -F c `
+  -f backup.dump
+
+# コマンドが成功したら、セキュリティのために環境変数を削除します
+Remove-Item Env:PGPASSWORD
+Remove-Item Env:PGSSLMODE
+
+## DBをリストア
+$env:PGPASSWORD='13Ceis31!!'
+$env:PGSSLMODE='require'
+
+pg_restore `
+  -h aws-0-ap-northeast-1.pooler.supabase.com `
+  -p 6543 `
+  -U postgres.avavrmljmjecnlkctlca `
+  -d postgres `
+  -v `
+  -c `
+  -x `
+  -O `
+  -n public `
+  backup.dump
